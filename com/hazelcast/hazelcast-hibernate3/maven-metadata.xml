@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <metadata>
   <groupId>com.hazelcast</groupId>
-  <artifactId>hazelcast-hibernate</artifactId>
+  <artifactId>hazelcast-hibernate3</artifactId>
   <versioning>
     <release>3.3.3-ms</release>
     <versions>
       <version>3.3.3-ms</version>
     </versions>
-    <lastUpdated>20141210173054</lastUpdated>
+    <lastUpdated>20141210173057</lastUpdated>
   </versioning>
 </metadata>
