@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>com.hazelcast</groupId>
+  <artifactId>hazelcast</artifactId>
+  <versioning>
+    <release>ms-3.3.3</release>
+    <versions>
+      <version>ms-3.3.3</version>
+    </versions>
+    <lastUpdated>20141210170655</lastUpdated>
+  </versioning>
+</metadata>
