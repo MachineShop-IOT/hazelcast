@@ -23,7 +23,7 @@
     <groupId>com.hazelcast</groupId>
     <artifactId>hazelcast-root</artifactId>
     <packaging>pom</packaging>
-    <version>3.3.3</version>
+    <version>ms-3.3.3</version>
     <name>Hazelcast Root</name>
     <description>Hazelcast In-Memory DataGrid</description>
     <url>http://www.hazelcast.com/</url>
@@ -46,6 +46,9 @@
         <maven.build.timestamp.format>yyyyMMdd</maven.build.timestamp.format>
         <timestamp>${maven.build.timestamp}</timestamp>
         <hazelcast.distribution>Hazelcast</hazelcast.distribution>
+        
+        <!-- github server corresponds to entry in ~/.m2/settings.xml -->
+        <github.global.server>github</github.global.server>
 
         <!--Not using 3.1 at the moment since it recompiles all classes everytime-->
         <!--https://jira.codehaus.org/browse/MCOMPILER-205-->
@@ -87,26 +90,11 @@
         </license>
     </licenses>
     <scm>
-        <connection>scm:git:git://github.com/hazelcast/hazelcast.git</connection>
-        <developerConnection>scm:git:git@github.com:hazelcast/hazelcast.git</developerConnection>
+        <connection>scm:git:git@github.com:MachineShop-IOT/hazelcast.git</connection>
+        <developerConnection>scm:git:git@github.com:MachineShop-IOT/hazelcast.git</developerConnection>
         <url>https://github.com/hazelcast/hazelcast/</url>
     </scm>
-    <developers>
-        <developer>
-            <id>oztalip</id>
-            <name>talip ozturk</name>
-            <email>talip@hazelcast.com</email>
-        </developer>
-        <developer>
-            <id>fuad</id>
-            <name>fuad malikov</name>
-            <email>fuad@hazelcast.com</email>
-        </developer>
-    </developers>
-    <issueManagement>
-        <system>Github</system>
-        <url>https://github.com/hazelcast/hazelcast/issues</url>
-    </issueManagement>
+        
     <organization>
         <name>Hazelcast, Inc.</name>
         <url>http://www.hazelcast.com/</url>
@@ -142,8 +130,16 @@
                 </includes>
             </resource>
         </resources>
-
+                                                                                                                     
         <plugins>
+            <plugin>
+              <artifactId>maven-deploy-plugin</artifactId>
+              <version>2.8.1</version>
+              <configuration>
+                <altDeploymentRepository>internal.repo::default::file://${project.build.directory}/mvn-repo</altDeploymentRepository>
+              </configuration>
+            </plugin>
+            
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
@@ -193,500 +189,507 @@
                     <!-- forkCount>1C</forkCount>
                     <reuseForks>true</reuseForks>
 
-                    <threadCount>1</threadCount>
-                    <perCoreThreadCount>true</perCoreThreadCount>
-                    <parallel>methods</parallel -->
+          <threadCount>1</threadCount>
+          <perCoreThreadCount>true</perCoreThreadCount>
+          <parallel>methods</parallel -->
 
-                    <!-- the argLine variable is needed for jacoco-->
-                    <argLine>
-                        -Xms128m -Xmx1G -XX:MaxPermSize=128M
-                        -Dhazelcast.version.check.enabled=false
-                        -Dhazelcast.mancenter.enabled=false
-                        -Dhazelcast.logging.type=none
-                        -Dhazelcast.test.use.network=false
-                    </argLine>
-                    <groups>com.hazelcast.test.annotation.QuickTest</groups>
-                    <excludedGroups>
-                        com.hazelcast.test.annotation.SlowTest,com.hazelcast.test.annotation.NightlyTest
-                    </excludedGroups>
-                </configuration>
-            </plugin>
+          <!-- the argLine variable is needed for jacoco-->
+          <argLine>
+            -Xms128m -Xmx1G -XX:MaxPermSize=128M
+            -Dhazelcast.version.check.enabled=false
+            -Dhazelcast.mancenter.enabled=false
+            -Dhazelcast.logging.type=none
+            -Dhazelcast.test.use.network=false
+          </argLine>
+          <groups>com.hazelcast.test.annotation.QuickTest</groups>
+          <excludedGroups>
+            com.hazelcast.test.annotation.SlowTest,com.hazelcast.test.annotation.NightlyTest
+          </excludedGroups>
+        </configuration>
+      </plugin>
+      
+      <plugin>
+        <groupId>com.github.github</groupId>
+        <artifactId>site-maven-plugin</artifactId>
+        <version>0.10</version>
+        <configuration>
+          <message>Maven artifacts for ${project.version}</message>  <!-- git commit message -->
+          <noJekyll>true</noJekyll>                                  <!-- disable webpage processing -->
+          <outputDirectory>${project.build.directory}/mvn-repo</outputDirectory> <!-- matches distribution management repository url above -->
+          <branch>refs/heads/mvn-repo</branch>                       <!-- remote branch name -->
+          <includes>
+            <include>**/*</include>
+          </includes>
+          <repositoryName>hazelcast</repositoryName>      <!-- github repo name -->
+          <repositoryOwner>MachineShop-IOT</repositoryOwner>    <!-- github username  -->
+        </configuration>
+        <executions>
+          <!-- run site-maven-plugin's 'site' target as part of the build's normal 'deploy' phase -->
+          <execution>
+            <goals>
+              <goal>site</goal>
+            </goals>
+            <phase>deploy</phase>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+
+    <profile>
+      <id>test-coverage-Local</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>cobertura-maven-plugin</artifactId>
+            <version>2.6</version>
+            <configuration>
+              <instrumentation>
+                <ignores>
+                </ignores>
+                <excludes>
+                </excludes>
+              </instrumentation>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>clean</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>${maven.surefire.plugin.version}</version>
+            <configuration combine.self="override">
+              <redirectTestOutputToFile>true</redirectTestOutputToFile>
+              <testFailureIgnore>true</testFailureIgnore>
+              <argLine>
+                -Xms128m -Xmx1G -XX:MaxPermSize=128M
+                -Dhazelcast.version.check.enabled=false
+                -Dhazelcast.mancenter.enabled=false
+                -Dhazelcast.logging.type=none
+                -Dhazelcast.test.use.network=false
+              </argLine>
+
+
+              <includes>
+                <include>**/YourTestFileHear.java</include>
+              </includes>
+
+            </configuration>
+          </plugin>
+
         </plugins>
-    </build>
-
-    <profiles>
-
-        <profile>
-            <id>test-coverage-Local</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>cobertura-maven-plugin</artifactId>
-                        <version>2.6</version>
-                        <configuration>
-                            <instrumentation>
-                                <ignores>
-                                </ignores>
-                                <excludes>
-                                </excludes>
-                            </instrumentation>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>clean</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <version>${maven.surefire.plugin.version}</version>
-                        <configuration combine.self="override">
-                            <redirectTestOutputToFile>true</redirectTestOutputToFile>
-                            <testFailureIgnore>true</testFailureIgnore>
-                            <argLine>
-                                -Xms128m -Xmx1G -XX:MaxPermSize=128M
-                                -Dhazelcast.version.check.enabled=false
-                                -Dhazelcast.mancenter.enabled=false
-                                -Dhazelcast.logging.type=none
-                                -Dhazelcast.test.use.network=false
-                            </argLine>
+      </build>
+      <reporting>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>cobertura-maven-plugin</artifactId>
+            <version>2.6</version>
+          </plugin>
+        </plugins>
+      </reporting>
+    </profile>
 
 
-                            <includes>
-                                <include>**/YourTestFileHear.java</include>
-                            </includes>
+    <profile>
+      <properties>
+        <argLine>
+          -Xms128m -Xmx1G -XX:MaxPermSize=128M
+          -Dhazelcast.version.check.enabled=false
+          -Dhazelcast.mancenter.enabled=false
+          -Dhazelcast.logging.type=none
+          -Dhazelcast.test.use.network=false
+        </argLine>
+      </properties>
+      <id>test-coverage</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>${maven.surefire.plugin.version}</version>
+            <configuration combine.self="override">
+              <redirectTestOutputToFile>true</redirectTestOutputToFile>
+              <testFailureIgnore>true</testFailureIgnore>
+              <groups>com.hazelcast.test.annotation.QuickTest,com.hazelcast.test.annotation.SlowTest
+              </groups>
+              <excludedGroups>
+                com.hazelcast.test.annotation.NightlyTest
+              </excludedGroups>
+            </configuration>
+          </plugin>
 
-                        </configuration>
-                    </plugin>
+        </plugins>
+      </build>
+    </profile>
 
-                </plugins>
-            </build>
-            <reporting>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>cobertura-maven-plugin</artifactId>
-                        <version>2.6</version>
-                    </plugin>
-                </plugins>
-            </reporting>
-        </profile>
+    <profile>
+      <id>test-coverage-nightly</id>
+      <properties>
+        <coverage.reports.dir>${basedir}/target/coverage-reports</coverage.reports.dir>
+        <sonar.jacoco.reportPath>${coverage.reports.dir}/jacoco.exec</sonar.jacoco.reportPath>
+        <sonar.jacoco.itReportPath>${coverage.reports.dir}/jacoco-it.exec</sonar.jacoco.itReportPath>
+      </properties>
+      <build>
+        <plugins>
 
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <version>${jacoco.version}</version>
+            <configuration>
+              <append>true</append>
+            </configuration>
+            <executions>
+              <execution>
+                <id>pre-unit-test</id>
+                <goals>
+                  <goal>prepare-agent</goal>
+                </goals>
+              </execution>
+              <execution>
+                <id>post-unit-test</id>
+                <phase>test</phase>
+                <goals>
+                  <goal>report</goal>
+                </goals>
+              </execution>
+              <execution>
+                <id>pre-integration-test</id>
+                <phase>pre-integration-test</phase>
+                <goals>
+                  <goal>prepare-agent</goal>
+                </goals>
+                <configuration>
+                  <destFile>${sonar.jacoco.itReportPath}</destFile>
+                  <propertyName>failsafe.argLine</propertyName>
+                </configuration>
+              </execution>
+              <execution>
+                <id>post-integration-test</id>
+                <phase>post-integration-test</phase>
+                <goals>
+                  <goal>report</goal>
+                </goals>
+                <configuration>
+                  <dataFile>${sonar.jacoco.itReportPath}</dataFile>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
 
-        <profile>
-            <properties>
-                <argLine>
-                    -Xms128m -Xmx1G -XX:MaxPermSize=128M
-                    -Dhazelcast.version.check.enabled=false
-                    -Dhazelcast.mancenter.enabled=false
-                    -Dhazelcast.logging.type=none
-                    -Dhazelcast.test.use.network=false
-                </argLine>
-            </properties>
-            <id>test-coverage</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <version>${maven.surefire.plugin.version}</version>
-                        <configuration combine.self="override">
-                            <redirectTestOutputToFile>true</redirectTestOutputToFile>
-                            <testFailureIgnore>true</testFailureIgnore>
-                            <groups>com.hazelcast.test.annotation.QuickTest,com.hazelcast.test.annotation.SlowTest
-                            </groups>
-                            <excludedGroups>
-                                com.hazelcast.test.annotation.NightlyTest
-                            </excludedGroups>
-                        </configuration>
-                    </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>${maven.surefire.plugin.version}</version>
+            <configuration combine.self="override">
+              <redirectTestOutputToFile>true</redirectTestOutputToFile>
+              <testFailureIgnore>true</testFailureIgnore>
+              <argLine>
+                -Xms128m -Xmx1G -XX:MaxPermSize=128M
+                -Dhazelcast.version.check.enabled=false
+                -Dhazelcast.mancenter.enabled=false
+                -Dhazelcast.logging.type=none
+                -Dhazelcast.test.use.network=false
+              </argLine>
 
-                </plugins>
-            </build>
-        </profile>
+              <includes>
+                <include>**/ExecutorConfigTest*.java</include>
+                <include>**/TopicTest*.java</include>
+                <include>**/LockTest*.java</include>
+              </includes>
 
-        <profile>
-            <id>test-coverage-nightly</id>
-            <properties>
-                <coverage.reports.dir>${basedir}/target/coverage-reports</coverage.reports.dir>
-                <sonar.jacoco.reportPath>${coverage.reports.dir}/jacoco.exec</sonar.jacoco.reportPath>
-                <sonar.jacoco.itReportPath>${coverage.reports.dir}/jacoco-it.exec</sonar.jacoco.itReportPath>
-            </properties>
-            <build>
-                <plugins>
+              <groups>com.hazelcast.test.annotation.QuickTest,com.hazelcast.test.annotation.SlowTest
+              </groups>
+              <excludedGroups>
+                com.hazelcast.test.annotation.NightlyTest
+              </excludedGroups>
+            </configuration>
+          </plugin>
 
-                    <plugin>
-                        <groupId>org.jacoco</groupId>
-                        <artifactId>jacoco-maven-plugin</artifactId>
-                        <version>${jacoco.version}</version>
-                        <configuration>
-                            <append>true</append>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>pre-unit-test</id>
-                                <goals>
-                                    <goal>prepare-agent</goal>
-                                </goals>
-                            </execution>
-                            <execution>
-                                <id>post-unit-test</id>
-                                <phase>test</phase>
-                                <goals>
-                                    <goal>report</goal>
-                                </goals>
-                            </execution>
-                            <execution>
-                                <id>pre-integration-test</id>
-                                <phase>pre-integration-test</phase>
-                                <goals>
-                                    <goal>prepare-agent</goal>
-                                </goals>
-                                <configuration>
-                                    <destFile>${sonar.jacoco.itReportPath}</destFile>
-                                    <propertyName>failsafe.argLine</propertyName>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>post-integration-test</id>
-                                <phase>post-integration-test</phase>
-                                <goals>
-                                    <goal>report</goal>
-                                </goals>
-                                <configuration>
-                                    <dataFile>${sonar.jacoco.itReportPath}</dataFile>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <version>2.14</version>
+            <configuration combine.self="override">
+              <redirectTestOutputToFile>true</redirectTestOutputToFile>
+              <argLine>
+                ${jacoco.agent.argLine}
+                -Xms129m -Xmx1G -XX:MaxPermSize=129M
+                -Dhazelcast.version.check.enabled=false
+                -Dhazelcast.mancenter.enabled=false
+                -Dhazelcast.logging.type=none
+                -Dhazelcast.test.use.network=true
+              </argLine>
+              <includes>
+                <include>**/AtomicLongTest*.java</include>
+                <include>**/AtomicReferenceTest*.java</include>
+              </includes>
+              <groups>
+                com.hazelcast.test.annotation.QuickTest,com.hazelcast.test.annotation.SlowTest,com.hazelcast.test.annotation.NightlyTest
+              </groups>
 
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <version>${maven.surefire.plugin.version}</version>
-                        <configuration combine.self="override">
-                            <redirectTestOutputToFile>true</redirectTestOutputToFile>
-                            <testFailureIgnore>true</testFailureIgnore>
-                            <argLine>
-                                -Xms128m -Xmx1G -XX:MaxPermSize=128M
-                                -Dhazelcast.version.check.enabled=false
-                                -Dhazelcast.mancenter.enabled=false
-                                -Dhazelcast.logging.type=none
-                                -Dhazelcast.test.use.network=false
-                            </argLine>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
 
-                            <includes>
-                                <include>**/ExecutorConfigTest*.java</include>
-                                <include>**/TopicTest*.java</include>
-                                <include>**/LockTest*.java</include>
-                            </includes>
+    <profile>
+      <id>release</id>
+      <properties>
+        <javadoc>false</javadoc>
+      </properties>
+      <build>
+        <plugins>          
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>${maven.javadoc.plugin.version}</version>
+            <configuration>
+              <javaApiLinks>
+                <property>
+                  <name>api_1.6</name>
+                  <value>http://download.oracle.com/javase/1.6.0/docs/api/</value>
+                </property>
+                <property>
+                  <name>api_1.7</name>
+                  <value>http://download.oracle.com/javase/1.7.0/docs/api/</value>
+                </property>
+              </javaApiLinks>
+            </configuration>
+<!--            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>-->
+          </plugin>
+        </plugins>
 
-                            <groups>com.hazelcast.test.annotation.QuickTest,com.hazelcast.test.annotation.SlowTest
-                            </groups>
-                            <excludedGroups>
-                                com.hazelcast.test.annotation.NightlyTest
-                            </excludedGroups>
-                        </configuration>
-                    </plugin>
+      </build>
+      <modules>
+        <module>hazelcast-all</module>
+      </modules>
+    </profile>
 
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-failsafe-plugin</artifactId>
-                        <version>2.14</version>
-                        <configuration combine.self="override">
-                            <redirectTestOutputToFile>true</redirectTestOutputToFile>
-                            <argLine>
-                                ${jacoco.agent.argLine}
-                                -Xms129m -Xmx1G -XX:MaxPermSize=129M
-                                -Dhazelcast.version.check.enabled=false
-                                -Dhazelcast.mancenter.enabled=false
-                                -Dhazelcast.logging.type=none
-                                -Dhazelcast.test.use.network=true
-                            </argLine>
-                            <includes>
-                                <include>**/AtomicLongTest*.java</include>
-                                <include>**/AtomicReferenceTest*.java</include>
-                            </includes>
-                            <groups>
-                                com.hazelcast.test.annotation.QuickTest,com.hazelcast.test.annotation.SlowTest,com.hazelcast.test.annotation.NightlyTest
-                            </groups>
+    <!-- unfortunately it isn't possible to chain profiles, so we need to duplicate the javadoc plugin-->
+    <profile>
+      <id>release-snapshot</id>
+      <properties>
+        <javadoc>true</javadoc>
+      </properties>
+      <modules>
+        <module>hazelcast-all</module>
+      </modules>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>${maven.javadoc.plugin.version}</version>
+            <configuration>
+              <javaApiLinks>
+                <property>
+                  <name>api_1.6</name>
+                  <value>http://download.oracle.com/javase/1.6.0/docs/api/</value>
+                </property>
+                <property>
+                  <name>api_1.7</name>
+                  <value>http://download.oracle.com/javase/1.7.0/docs/api/</value>
+                </property>
+              </javaApiLinks>
+            </configuration>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
 
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>integration-test</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
+    <profile>
+      <id>zip</id>
+      <modules>
+        <module>hazelcast-all</module>
+        <module>hazelcast-documentation</module>
+      </modules>
+    </profile>
 
-        <profile>
-            <id>release</id>
-            <properties>
-                <javadoc>true</javadoc>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-gpg-plugin</artifactId>
-                        <version>${maven.gpg.plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <id>sign-artifacts</id>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>sign</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>${maven.javadoc.plugin.version}</version>
-                        <configuration>
-                            <javaApiLinks>
-                                <property>
-                                    <name>api_1.6</name>
-                                    <value>http://download.oracle.com/javase/1.6.0/docs/api/</value>
-                                </property>
-                                <property>
-                                    <name>api_1.7</name>
-                                    <value>http://download.oracle.com/javase/1.7.0/docs/api/</value>
-                                </property>
-                            </javaApiLinks>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>attach-javadocs</id>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
+    <profile>
+      <id>checkstyle</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-checkstyle-plugin</artifactId>
+            <version>${checkstyle.maven.plugin.version}</version>
+            <executions>
+              <execution>
+                <phase>validate</phase>
+                <goals>
+                  <goal>checkstyle</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <configLocation>${main.basedir}/checkstyle/checkstyle.xml</configLocation>
+              <suppressionsLocation>${main.basedir}/checkstyle/suppressions.xml</suppressionsLocation>
+              <headerLocation>${main.basedir}/checkstyle/ClassHeader.txt</headerLocation>
+              <enableRSS>false</enableRSS>
+              <linkXRef>true</linkXRef>
+              <consoleOutput>true</consoleOutput>
+              <failsOnError>true</failsOnError>
+              <failOnViolation>true</failOnViolation>
+              <includeTestSourceDirectory>false</includeTestSourceDirectory>
+              <enableRulesSummary>true</enableRulesSummary>
+              <propertyExpansion>main.basedir=${main.basedir}</propertyExpansion>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
 
-            </build>
-            <modules>
-                <module>hazelcast-all</module>
-            </modules>
-        </profile>
+    <profile>
+      <id>findbugs</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>findbugs-maven-plugin</artifactId>
+            <version>${findbugs.maven.plugin.version}</version>
+            <executions>
+              <execution>
+                <phase>compile</phase>
+                <goals>
+                  <goal>check</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <failOnError>true</failOnError>
+              <excludeFilterFile>${main.basedir}/findbugs/findbugs-exclude.xml</excludeFilterFile>
+            </configuration>
+          </plugin>
 
-        <!-- unfortunately it isn't possible to chain profiles, so we need to duplicate the javadoc plugin-->
-        <profile>
-            <id>release-snapshot</id>
-            <properties>
-                <javadoc>true</javadoc>
-            </properties>
-            <modules>
-                <module>hazelcast-all</module>
-            </modules>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>${maven.javadoc.plugin.version}</version>
-                        <configuration>
-                            <javaApiLinks>
-                                <property>
-                                    <name>api_1.6</name>
-                                    <value>http://download.oracle.com/javase/1.6.0/docs/api/</value>
-                                </property>
-                                <property>
-                                    <name>api_1.7</name>
-                                    <value>http://download.oracle.com/javase/1.7.0/docs/api/</value>
-                                </property>
-                            </javaApiLinks>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>attach-javadocs</id>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
+        </plugins>
+      </build>
+    </profile>
 
-        <profile>
-            <id>zip</id>
-            <modules>
-                <module>hazelcast-all</module>
-                <module>hazelcast-documentation</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>checkstyle</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-checkstyle-plugin</artifactId>
-                        <version>${checkstyle.maven.plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <phase>validate</phase>
-                                <goals>
-                                    <goal>checkstyle</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <configLocation>${main.basedir}/checkstyle/checkstyle.xml</configLocation>
-                            <suppressionsLocation>${main.basedir}/checkstyle/suppressions.xml</suppressionsLocation>
-                            <headerLocation>${main.basedir}/checkstyle/ClassHeader.txt</headerLocation>
-                            <enableRSS>false</enableRSS>
-                            <linkXRef>true</linkXRef>
-                            <consoleOutput>true</consoleOutput>
-                            <failsOnError>true</failsOnError>
-                            <failOnViolation>true</failOnViolation>
-                            <includeTestSourceDirectory>false</includeTestSourceDirectory>
-                            <enableRulesSummary>true</enableRulesSummary>
-                            <propertyExpansion>main.basedir=${main.basedir}</propertyExpansion>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <profile>
-            <id>findbugs</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>findbugs-maven-plugin</artifactId>
-                        <version>${findbugs.maven.plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <phase>compile</phase>
-                                <goals>
-                                    <goal>check</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <failOnError>true</failOnError>
-                            <excludeFilterFile>${main.basedir}/findbugs/findbugs-exclude.xml</excludeFilterFile>
-                        </configuration>
-                    </plugin>
-
-                </plugins>
-            </build>
-        </profile>
-
-        <profile>
-            <id>nightly-build</id>
-            <build>
-                <plugins>
+    <profile>
+      <id>nightly-build</id>
+      <build>
+        <plugins>
 
 
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <version>${maven.surefire.plugin.version}</version>
-                        <configuration combine.self="override">
-                            <parallel>none</parallel>
-                            <redirectTestOutputToFile>true</redirectTestOutputToFile>
-                            <argLine>-Xms128m -Xmx1G -XX:MaxPermSize=128M
-                                -Dhazelcast.version.check.enabled=false
-                                -Dhazelcast.mancenter.enabled=false
-                                -Dhazelcast.logging.type=none
-                                -Dhazelcast.test.use.network=true
-                            </argLine>
-                            <groups>com.hazelcast.test.annotation.NightlyTest,com.hazelcast.test.annotation.SlowTest
-                            </groups>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>${maven.surefire.plugin.version}</version>
+            <configuration combine.self="override">
+              <parallel>none</parallel>
+              <redirectTestOutputToFile>true</redirectTestOutputToFile>
+              <argLine>-Xms128m -Xmx1G -XX:MaxPermSize=128M
+                -Dhazelcast.version.check.enabled=false
+                -Dhazelcast.mancenter.enabled=false
+                -Dhazelcast.logging.type=none
+                -Dhazelcast.test.use.network=true
+              </argLine>
+              <groups>com.hazelcast.test.annotation.NightlyTest,com.hazelcast.test.annotation.SlowTest
+              </groups>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
 
-        <profile>
-            <id>all-tests</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <version>${maven.surefire.plugin.version}</version>
-                        <configuration combine.self="override">
-                            <redirectTestOutputToFile>true</redirectTestOutputToFile>
-                            <parallel>none</parallel>
-                            <argLine>-Xms128m -Xmx1G -XX:MaxPermSize=128M
-                                -Dhazelcast.version.check.enabled=false
-                                -Dhazelcast.mancenter.enabled=false
-                                -Dhazelcast.logging.type=none
-                                -Dhazelcast.test.use.network=true
-                            </argLine>
-                            <groups>
-                                com.hazelcast.test.annotation.QuickTest,com.hazelcast.test.annotation.SlowTest,com.hazelcast.test.annotation.NightlyTest
-                            </groups>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
+    <profile>
+      <id>all-tests</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>${maven.surefire.plugin.version}</version>
+            <configuration combine.self="override">
+              <redirectTestOutputToFile>true</redirectTestOutputToFile>
+              <parallel>none</parallel>
+              <argLine>-Xms128m -Xmx1G -XX:MaxPermSize=128M
+                -Dhazelcast.version.check.enabled=false
+                -Dhazelcast.mancenter.enabled=false
+                -Dhazelcast.logging.type=none
+                -Dhazelcast.test.use.network=true
+              </argLine>
+              <groups>
+                com.hazelcast.test.annotation.QuickTest,com.hazelcast.test.annotation.SlowTest,com.hazelcast.test.annotation.NightlyTest
+              </groups>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
 
-    </profiles>
+  </profiles>
 
-    <distributionManagement>
-        <repository>
-            <id>release-repository</id>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
-        </repository>
-        <snapshotRepository>
-            <id>snapshot-repository</id>
-            <name>Maven2 Snapshot Repository</name>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-            <uniqueVersion>false</uniqueVersion>
-        </snapshotRepository>
-    </distributionManagement>
-
-    <dependencies>
-        <dependency>
-            <groupId>javax.cache</groupId>
-            <artifactId>cache-api</artifactId>
-            <version>${jsr107.api.version}</version>
-            <scope>provided</scope>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-all</artifactId>
-            <version>${mockito.all.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-            <version>${log4j.version}</version>
-            <scope>test</scope>
-            <optional>true</optional>
-        </dependency>
-    </dependencies>
+  <distributionManagement>
+    <repository>
+      <id>internal.repo</id>
+      <name>Temporary Staging Repository</name>
+      <url>file://${project.build.directory}/mvn-repo</url>
+    </repository>
+  </distributionManagement>
+  
+  <dependencies>
+    <dependency>
+      <groupId>javax.cache</groupId>
+      <artifactId>cache-api</artifactId>
+      <version>${jsr107.api.version}</version>
+      <scope>provided</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-all</artifactId>
+      <version>${mockito.all.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>log4j</groupId>
+      <artifactId>log4j</artifactId>
+      <version>${log4j.version}</version>
+      <scope>test</scope>
+      <optional>true</optional>
+    </dependency>
+  </dependencies>
 
 </project>
