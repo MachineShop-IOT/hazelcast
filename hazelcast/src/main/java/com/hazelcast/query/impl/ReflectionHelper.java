@@ -98,8 +98,7 @@ public final class ReflectionHelper {
             Getter parent = null;
             List<String> possibleMethodNames = new ArrayList<String>(INITIAL_CAPACITY);
             StringBuilder runningName = new StringBuilder();
-            for (final String name : attribute.split("\\.")) {
-                runningName.append(name).append(".");
+            for (final String name : attribute.split("\\.")) {                
                 Getter localGetter = null;
                 possibleMethodNames.clear();
                 possibleMethodNames.add(name);
@@ -153,6 +152,11 @@ public final class ReflectionHelper {
                             + name + "' on class '" + clazz + "'");
                 }
                 parent = localGetter;
+                if(runningName.length() > 0) {
+                  runningName.append(".").append(name);
+                } else {
+                  runningName.append(name);
+                }
             }
             getter = parent;
             if (getter.isCacheable()) {
