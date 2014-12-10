@@ -107,9 +107,14 @@ public final class ReflectionHelper {
                 possibleMethodNames.add("is" + camelName);
                 if (name.equals(THIS_ATTRIBUTE_NAME)) {
                     localGetter = new ThisGetter(parent, obj);
-                } else if (clazz.equals(Map.class)) {
-                  // TODO Escape dots?
+                } else if (clazz.equals(Map.class)) {                  
                   String dotField = attribute.replaceFirst(runningName.toString(), "");
+                  if (dotField.startsWith(".")) {
+                    dotField = dotField.replaceFirst("\\.", "");
+                  }
+                  if (dotField.endsWith(".")) {
+                    dotField = dotField.substring(0,dotField.length() - 1);
+                  }
                   localGetter = new MapEntryGetter(parent, dotField);
                 } else {
                     for (String methodName : possibleMethodNames) {
