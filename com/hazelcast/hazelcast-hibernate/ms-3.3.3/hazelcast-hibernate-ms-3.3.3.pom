@@ -18,9 +18,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <name>hazelcast-client</name>
-    <artifactId>hazelcast-client</artifactId>
-    <packaging>jar</packaging>
+    <name>hazelcast-hibernate</name>
+    <artifactId>hazelcast-hibernate</artifactId>
+    <packaging>pom</packaging>
 
     <parent>
         <groupId>com.hazelcast</groupId>
@@ -29,13 +29,19 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
+    <modules>
+        <module>hazelcast-hibernate3</module>
+        <module>hazelcast-hibernate4</module>
+    </modules>
+
     <properties>
+        <hsqldb.version>2.2.9</hsqldb.version>
+        <javaassist.version>3.12.1.GA</javaassist.version>
         <!-- needed for checkstyle/findbugs -->
         <main.basedir>${project.parent.basedir}</main.basedir>
-        <atomikos-version>3.9.2</atomikos-version>
     </properties>
 
-     <build>
+    <build>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -47,7 +53,6 @@
                     <encoding>${project.build.sourceEncoding}</encoding>
                 </configuration>
             </plugin>
-
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>animal-sniffer-maven-plugin</artifactId>
@@ -58,6 +63,9 @@
                         <artifactId>java16</artifactId>
                         <version>1.0</version>
                     </signature>
+                    <ignores>
+                        <ignore>sun.misc.Unsafe</ignore>
+                    </ignores>
                 </configuration>
                 <executions>
                     <execution>
@@ -69,7 +77,6 @@
                     </execution>
                 </executions>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
@@ -83,7 +90,6 @@
                     </execution>
                 </executions>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.felix</groupId>
                 <artifactId>maven-bundle-plugin</artifactId>
@@ -125,6 +131,7 @@
                         <index>true</index>
                         <compress>true</compress>
                         <manifest>
+                            <addClasspath>false</addClasspath>
                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                             <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
                         </manifest>
@@ -141,15 +148,12 @@
             <artifactId>hazelcast</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
-
         <dependency>
             <groupId>com.hazelcast</groupId>
-            <artifactId>hazelcast-cloud</artifactId>
+            <artifactId>hazelcast-client</artifactId>
             <version>${project.parent.version}</version>
             <optional>true</optional>
-            <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>com.hazelcast</groupId>
             <artifactId>hazelcast</artifactId>
@@ -157,19 +161,33 @@
             <version>${project.parent.version}</version>
             <classifier>tests</classifier>
         </dependency>
-
-        <!-- dependencies for XATransaction tests -->
         <dependency>
-            <groupId>com.atomikos</groupId>
-            <artifactId>transactions-jdbc</artifactId>
+            <groupId>org.hsqldb</groupId>
+            <artifactId>hsqldb</artifactId>
+            <version>${hsqldb.version}</version>
+            <type>jar</type>
             <scope>test</scope>
-            <version>${atomikos-version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.geronimo.specs</groupId>
-            <artifactId>geronimo-jta_1.1_spec</artifactId>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.api.version}</version>
+            <type>jar</type>
             <scope>test</scope>
-            <version>1.1.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>${slf4j.api.version}</version>
+            <type>jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>javassist</groupId>
+            <artifactId>javassist</artifactId>
+            <version>${javaassist.version}</version>
+            <type>jar</type>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
