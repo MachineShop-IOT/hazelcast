@@ -2,6 +2,7 @@ For building for Machineshop auto deploy to github mave repo:
 
 Add your authentication information to ~/.m2/settings.xml so that the github site-maven-plugin can push to github:
 
+```xml
 <!-- NOTE: MAKE SURE THAT settings.xml IS NOT WORLD READABLE! -->
 <settings>
   <servers>
@@ -12,8 +13,9 @@ Add your authentication information to ~/.m2/settings.xml so that the github sit
     </server>
   </servers>
 </settings>
-(As noted, please make sure to chmod 700 settings.xml to ensure no one can read your password in the file.)
+```
 
+(As noted, please make sure to chmod 700 settings.xml to ensure no one can read your password in the file.)
 
 ## Hazelcast is a clustering and highly scalable data distribution platform for Java.
 
