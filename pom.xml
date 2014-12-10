@@ -23,7 +23,7 @@
     <groupId>com.hazelcast</groupId>
     <artifactId>hazelcast-root</artifactId>
     <packaging>pom</packaging>
-    <version>ms-3.3.3</version>
+    <version>3.3.3-ms</version>
     <name>Hazelcast Root</name>
     <description>Hazelcast In-Memory DataGrid</description>
     <url>http://www.hazelcast.com/</url>
@@ -213,6 +213,7 @@
         <artifactId>site-maven-plugin</artifactId>
         <version>0.10</version>
         <configuration>
+	  <merge>true</merge>
           <message>Maven artifacts for ${project.version}</message>  <!-- git commit message -->
           <noJekyll>true</noJekyll>                                  <!-- disable webpage processing -->
           <outputDirectory>${project.build.directory}/mvn-repo</outputDirectory> <!-- matches distribution management repository url above -->
