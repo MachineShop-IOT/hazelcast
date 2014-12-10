@@ -3,10 +3,10 @@
   <groupId>com.hazelcast</groupId>
   <artifactId>hazelcast-root</artifactId>
   <versioning>
-    <release>ms-3.3.3</release>
+    <release>3.3.3-ms</release>
     <versions>
-      <version>ms-3.3.3</version>
+      <version>3.3.3-ms</version>
     </versions>
-    <lastUpdated>20141210170642</lastUpdated>
+    <lastUpdated>20141210172329</lastUpdated>
   </versioning>
 </metadata>
