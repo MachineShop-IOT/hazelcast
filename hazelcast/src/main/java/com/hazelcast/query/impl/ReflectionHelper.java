@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.hazelcast.query.impl;
 
 import com.hazelcast.query.QueryException;
@@ -32,13 +31,16 @@ import java.util.concurrent.ConcurrentMap;
 
 import static com.hazelcast.query.QueryConstants.THIS_ATTRIBUTE_NAME;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
- * Scans your classpath, indexes the metadata, allows you to query it on runtime.
+ * Scans your classpath, indexes the metadata, allows you to query it on
+ * runtime.
  */
 public final class ReflectionHelper {
 
-      private static final ClassLoader THIS_CL = ReflectionHelper.class.getClassLoader();
+  private static final ClassLoader THIS_CL = ReflectionHelper.class.getClassLoader();
   private static final ConcurrentMap<String, Getter> GETTER_CACHE = new ConcurrentHashMap<String, Getter>(1000);
   private static final int INITIAL_CAPACITY = 3;
 
@@ -87,100 +89,101 @@ public final class ReflectionHelper {
   }
 
   private static Getter createGetter(Object obj, String attribute) {
-        Class clazz = obj.getClass();
-        final String cacheKey = clazz.getName() + ":" + attribute;
-        Getter getter = GETTER_CACHE.get(cacheKey);
-        if (getter != null) {
-            return getter;
-        }
-
-        try {
-            Getter parent = null;
-            List<String> possibleMethodNames = new ArrayList<String>(INITIAL_CAPACITY);
-            StringBuilder runningName = new StringBuilder();
-            for (final String name : attribute.split("\\.")) {                
-                Getter localGetter = null;
-                possibleMethodNames.clear();
-                possibleMethodNames.add(name);
-                final String camelName = Character.toUpperCase(name.charAt(0)) + name.substring(1);
-                possibleMethodNames.add("get" + camelName);
-                possibleMethodNames.add("is" + camelName);
-                if (name.equals(THIS_ATTRIBUTE_NAME)) {
-                    localGetter = new ThisGetter(parent, obj);
-                } else if (clazz.equals(Map.class)) {                  
-                  String dotField = attribute.replaceFirst(runningName.toString(), "");
-                  if (dotField.startsWith(".")) {
-                    dotField = dotField.replaceFirst("\\.", "");
-                  }
-                  if (dotField.endsWith(".")) {
-                    dotField = dotField.substring(0,dotField.length() - 1);
-                  }
-                  localGetter = new MapEntryGetter(parent, dotField);
-                } else {
-                    for (String methodName : possibleMethodNames) {
-                        try {
-                            final Method method = clazz.getMethod(methodName);
-                            method.setAccessible(true);
-                            localGetter = new MethodGetter(parent, method);
-                            clazz = method.getReturnType();
-                            break;
-                        } catch (NoSuchMethodException ignored) {
-                            EmptyStatement.ignore(ignored);
-                        }
-                    }
-                    if (localGetter == null) {
-                        try {
-                            final Field field = clazz.getField(name);
-                            localGetter = new FieldGetter(parent, field);
-                            clazz = field.getType();
-                        } catch (NoSuchFieldException ignored) {
-                            EmptyStatement.ignore(ignored);
-                        }
-                    }
-                    if (localGetter == null) {
-                        Class c = clazz;
-                        while (!Object.class.equals(c)) {
-                            try {
-                                final Field field = c.getDeclaredField(name);
-                                field.setAccessible(true);
-                                localGetter = new FieldGetter(parent, field);
-                                clazz = field.getType();
-                                break;
-                            } catch (NoSuchFieldException ignored) {
-                                c = c.getSuperclass();
-                            }
-                        }
-                    }
-                }
-                if (localGetter == null) {
-                    throw new IllegalArgumentException("There is no suitable accessor for '"
-                            + name + "' on class '" + clazz + "'");
-                }
-                parent = localGetter;
-                if(runningName.length() > 0) {
-                  runningName.append(".").append(name);
-                } else {
-                  runningName.append(name);
-                }
-            }
-            getter = parent;
-            if (getter.isCacheable()) {
-                Getter foundGetter = GETTER_CACHE.putIfAbsent(cacheKey, getter);
-                if (foundGetter != null) {
-                    getter = foundGetter;
-                }
-            }
-            return getter;
-        } catch (Throwable e) {
-            throw new QueryException(e);
-        }
+    Class clazz = obj.getClass();
+    final String cacheKey = clazz.getName() + ":" + attribute;
+    Getter getter = GETTER_CACHE.get(cacheKey);
+    if (getter != null) {
+      return getter;
     }
+
+    try {
+      Getter parent = null;
+      List<String> possibleMethodNames = new ArrayList<String>(INITIAL_CAPACITY);
+      StringBuilder runningName = new StringBuilder();
+      for (final String name : attribute.split("\\.")) {
+        Getter localGetter = null;
+        possibleMethodNames.clear();
+        possibleMethodNames.add(name);
+        final String camelName = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        possibleMethodNames.add("get" + camelName);
+        possibleMethodNames.add("is" + camelName);
+        if (name.equals(THIS_ATTRIBUTE_NAME)) {
+          localGetter = new ThisGetter(parent, obj);
+        } else if (clazz.equals(Map.class)) {
+          String dotField = attribute.replaceFirst(runningName.toString(), "");
+          if (dotField.startsWith(".")) {
+            dotField = dotField.replaceFirst("\\.", "");
+          }
+          if (dotField.endsWith(".")) {
+            dotField = dotField.substring(0, dotField.length() - 1);
+          }
+          localGetter = new MapEntryGetter(parent, dotField, obj);
+        } else {
+          for (String methodName : possibleMethodNames) {
+            try {
+              final Method method = clazz.getMethod(methodName);
+              method.setAccessible(true);
+              localGetter = new MethodGetter(parent, method);
+              clazz = method.getReturnType();
+              break;
+            } catch (NoSuchMethodException ignored) {
+              EmptyStatement.ignore(ignored);
+            }
+          }
+          if (localGetter == null) {
+            try {
+              final Field field = clazz.getField(name);
+              localGetter = new FieldGetter(parent, field);
+              clazz = field.getType();
+            } catch (NoSuchFieldException ignored) {
+              EmptyStatement.ignore(ignored);
+            }
+          }
+          if (localGetter == null) {
+            Class c = clazz;
+            while (!Object.class.equals(c)) {
+              try {
+                final Field field = c.getDeclaredField(name);
+                field.setAccessible(true);
+                localGetter = new FieldGetter(parent, field);
+                clazz = field.getType();
+                break;
+              } catch (NoSuchFieldException ignored) {
+                c = c.getSuperclass();
+              }
+            }
+          }
+        }
+        if (localGetter == null) {
+          throw new IllegalArgumentException("There is no suitable accessor for '"
+                  + name + "' on class '" + clazz + "'");
+        }
+        parent = localGetter;
+        if (runningName.length() > 0) {
+          runningName.append(".").append(name);
+        } else {
+          runningName.append(name);
+        }
+      }
+      getter = parent;
+      if (getter.isCacheable()) {
+        Getter foundGetter = GETTER_CACHE.putIfAbsent(cacheKey, getter);
+        if (foundGetter != null) {
+          getter = foundGetter;
+        }
+      }
+      return getter;
+    } catch (Throwable e) {
+      throw new QueryException(e);
+    }
+  }
 
   public static Comparable extractValue(Object object, String attributeName) throws Exception {
     return (Comparable) createGetter(object, attributeName).getValue(object);
   }
 
   private abstract static class Getter {
+
     protected final Getter parent;
 
     public Getter(final Getter parent) {
@@ -195,6 +198,7 @@ public final class ReflectionHelper {
   }
 
   static class MethodGetter extends Getter {
+
     final Method method;
 
     MethodGetter(Getter parent, Method method) {
@@ -224,6 +228,7 @@ public final class ReflectionHelper {
   }
 
   static class FieldGetter extends Getter {
+
     final Field field;
 
     FieldGetter(Getter parent, Field field) {
@@ -255,6 +260,7 @@ public final class ReflectionHelper {
   }
 
   static class ThisGetter extends Getter {
+
     final Object object;
 
     public ThisGetter(final Getter parent, Object object) {
@@ -278,36 +284,49 @@ public final class ReflectionHelper {
     }
   }
 
-  static class MapEntryGetter extends Getter {
-    final String dotField;
+  static final class MapEntryGetter extends Getter {
 
-    public MapEntryGetter(final Getter parent, String dotField) {
+    String dotField;
+    Class clazz;
+    Object cachedVal;
+
+    public MapEntryGetter(Getter parent, String dotField, Object obj) {
       super(parent);
       this.dotField = dotField;
+      try {
+        cachedVal = getValue(obj);
+        clazz = cachedVal == null ? null : cachedVal.getClass();
+      } catch (Exception ex) {
+        Logger.getLogger(ReflectionHelper.class.getName()).log(Level.SEVERE, null, ex);
+        clazz = null;
+      }
     }
 
     @Override
     Object getValue(Object obj) throws Exception {
-      Object paramObj = obj;
-      paramObj = parent != null ? parent.getValue(paramObj) : paramObj;
-      return paramObj != null ? getValueRecursive((Map<String,Object>)paramObj, dotField) : null;
-      
+      if (cachedVal != null) {
+        Object paramObj = obj;
+        paramObj = parent != null ? parent.getValue(paramObj) : paramObj;
+        return paramObj != null ? getValueRecursive((Map<String, Object>) paramObj, dotField) : null;
+      } else {
+        return cachedVal;
+      }
     }
-    
+
     private Object getValueRecursive(Map<String, Object> inMap, String field) {
       String[] current = field.split("\\.");
       if (current.length == 1) {
         return inMap.get(field);
       } else {
-        Map<String, Object> outMap = (Map<String,Object>)inMap.get(current[0]);
-        String outField = field.replaceFirst(current[0] + "\\.", "");        
-        return getValueRecursive(outMap,outField); 
-      }           
+        Map<String, Object> outMap = (Map<String, Object>) inMap.get(current[0]);
+        String outField = field.replaceFirst(current[0] + "\\.", "");
+        return getValueRecursive(outMap, outField);
+      }
     }
 
     @Override
     Class getReturnType() {
-      return Object.class;
+      return clazz;
     }
 
     @Override
