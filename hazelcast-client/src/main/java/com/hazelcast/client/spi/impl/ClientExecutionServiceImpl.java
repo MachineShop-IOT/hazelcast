@@ -38,11 +38,10 @@ import java.util.concurrent.TimeUnit;
 public final class ClientExecutionServiceImpl implements ClientExecutionService {
 
     private static final ILogger LOGGER = Logger.getLogger(ClientExecutionService.class);
-
+    private static final long TERMINATE_TIMEOUT_SECONDS = 30;
     private final ExecutorService executor;
     private final ExecutorService internalExecutor;
     private final ScheduledExecutorService scheduledExecutor;
-
 
     public ClientExecutionServiceImpl(String name, ThreadGroup threadGroup, ClassLoader classLoader, int poolSize) {
         int executorPoolSize = poolSize;
@@ -77,7 +76,7 @@ public final class ClientExecutionServiceImpl implements ClientExecutionService 
     }
 
     public <T> ICompletableFuture<T> submitInternal(final Callable<T> command) {
-        CompletableFutureTask futureTask = new CompletableFutureTask(command, internalExecutor);
+        CompletableFutureTask futureTask = new CompletableFutureTask<T>(command, internalExecutor);
         internalExecutor.submit(futureTask);
         return futureTask;
     }
@@ -134,8 +133,25 @@ public final class ClientExecutionServiceImpl implements ClientExecutionService 
     }
 
     public void shutdown() {
-        internalExecutor.shutdownNow();
+        internalExecutor.shutdown();
+        try {
+            boolean success = internalExecutor.awaitTermination(TERMINATE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (!success) {
+                LOGGER.warning("InternalExecutor awaitTermination could not completed in "
+                        + TERMINATE_TIMEOUT_SECONDS + " seconds");
+            }
+        } catch (InterruptedException e) {
+            LOGGER.warning("Internal Executor await termination is interrupted", e);
+        }
         scheduledExecutor.shutdownNow();
-        executor.shutdownNow();
+        executor.shutdown();
+        try {
+            boolean success = executor.awaitTermination(TERMINATE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (!success) {
+                LOGGER.warning("Executor awaitTermination could not completed in " + TERMINATE_TIMEOUT_SECONDS + " seconds");
+            }
+        } catch (InterruptedException e) {
+            LOGGER.warning("Executor await termination is interrupted", e);
+        }
     }
 }

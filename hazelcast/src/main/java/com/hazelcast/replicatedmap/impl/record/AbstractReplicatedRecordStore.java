@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2013, Hazelcast, Inc. All Rights Reserved.
+ * Copyright (c) 2008-2015, Hazelcast, Inc. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,9 +47,9 @@ public abstract class AbstractReplicatedRecordStore<K, V>
         extends AbstractBaseReplicatedRecordStore<K, V> {
     static final String CLEAR_REPLICATION_MAGIC_KEY = ReplicatedMapService.SERVICE_NAME + "$CLEAR$MESSAGE$";
 
-//    entries are not removed on replicatedMap.remove() as it would reset a vector clock and we wouldn't be able to
-//    order subsequent events related to the entry. a tombstone is created instead. this constant says how long we
-//    keep the tombstone alive. if there is no event in this period then the tombstone is removed.
+    // entries are not removed on replicatedMap.remove() as it would reset a vector clock and we wouldn't be able to
+    // order subsequent events related to the entry. a tombstone is created instead. this constant says how long we
+    // keep the tombstone alive. if there is no event in this period then the tombstone is removed.
     static final int TOMBSTONE_REMOVAL_PERIOD_MS = 5 * 60 * 1000;
 
     public AbstractReplicatedRecordStore(String name, NodeEngine nodeEngine,
@@ -65,7 +65,7 @@ public abstract class AbstractReplicatedRecordStore<K, V>
         K marshalledKey = (K) marshallKey(key);
         synchronized (getMutex(marshalledKey)) {
             ReplicatedRecord<K, V> current = storage.get(marshalledKey);
-            if (current == null || current.getValue() != null) {
+            if (current == null || current.getValueInternal() != null) {
                 return;
             }
             storage.remove(marshalledKey, current);
@@ -85,7 +85,7 @@ public abstract class AbstractReplicatedRecordStore<K, V>
             if (current == null) {
                 oldValue = null;
             } else {
-                oldValue = (V) current.getValue();
+                oldValue = (V) current.getValueInternal();
                 if (oldValue != null) {
                     current.setValue(null, localMemberHash, TOMBSTONE_REMOVAL_PERIOD_MS);
                     scheduleTtlEntry(TOMBSTONE_REMOVAL_PERIOD_MS, marshalledKey, null);
@@ -116,9 +116,9 @@ public abstract class AbstractReplicatedRecordStore<K, V>
             if (current == null) {
                 oldValue = null;
             } else {
-                oldValue = (V) current.getValue();
+                oldValue = (V) current.getValueInternal();
                 if (oldValue != null) {
-                    current.setValue(null, localMemberHash, TOMBSTONE_REMOVAL_PERIOD_MS);
+                    current.setValueInternal(null, localMemberHash, TOMBSTONE_REMOVAL_PERIOD_MS);
                     scheduleTtlEntry(TOMBSTONE_REMOVAL_PERIOD_MS, marshalledKey, null);
                     current.incrementVectorClock(localMember);
                 }
@@ -180,7 +180,7 @@ public abstract class AbstractReplicatedRecordStore<K, V>
                 record = buildReplicatedRecord(marshalledKey, marshalledValue, new VectorClockTimestamp(), ttlMillis);
                 storage.put(marshalledKey, record);
             } else {
-                oldValue = (V) old.getValue();
+                oldValue = (V) old.getValueInternal();
                 storage.get(marshalledKey).setValue(marshalledValue, localMemberHash, ttlMillis);
             }
             if (ttlMillis > 0) {
@@ -206,7 +206,14 @@ public abstract class AbstractReplicatedRecordStore<K, V>
         ValidationUtil.isNotNull(key, "key");
         storage.checkState();
         mapStats.incrementOtherOperations();
-        return storage.containsKey(marshallKey(key));
+
+        return containsKeyAndValue(key);
+    }
+
+    // IMPORTANT >> Increments hit counter
+    private boolean containsKeyAndValue(Object key) {
+        ReplicatedRecord replicatedRecord = storage.get(marshallKey(key));
+        return replicatedRecord != null && replicatedRecord.getValue() != null;
     }
 
     @Override
@@ -228,7 +235,9 @@ public abstract class AbstractReplicatedRecordStore<K, V>
         storage.checkState();
         Set keySet = new HashSet(storage.size());
         for (K key : storage.keySet()) {
-            keySet.add(unmarshallKey(key));
+            if (containsKeyAndValue(key)) {
+                keySet.add(unmarshallKey(key));
+            }
         }
         mapStats.incrementOtherOperations();
         return keySet;
@@ -257,8 +266,13 @@ public abstract class AbstractReplicatedRecordStore<K, V>
         storage.checkState();
         Set entrySet = new HashSet(storage.size());
         for (Map.Entry<K, ReplicatedRecord<K, V>> entry : storage.entrySet()) {
-            Object key = unmarshallKey(entry.getKey());
-            Object value = unmarshallValue(entry.getValue().getValue());
+            K keyOfEntry = entry.getKey();
+            if (!containsKeyAndValue(keyOfEntry)) {
+                continue;
+            }
+            Object key = unmarshallKey(keyOfEntry);
+            // getValueInternal() is used here because hit count is incremented by containsKeyAndValue() above
+            Object value = unmarshallValue(entry.getValue().getValueInternal());
             entrySet.add(new AbstractMap.SimpleEntry(key, value));
         }
         mapStats.incrementOtherOperations();

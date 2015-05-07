@@ -29,7 +29,6 @@ import com.hazelcast.spi.PartitionAwareOperation;
 import com.hazelcast.spi.WaitNotifyKey;
 import com.hazelcast.spi.WaitNotifyService;
 import com.hazelcast.spi.WaitSupport;
-import com.hazelcast.spi.exception.CallTimeoutException;
 import com.hazelcast.spi.exception.PartitionMigratingException;
 import com.hazelcast.spi.exception.RetryableException;
 import com.hazelcast.util.Clock;
@@ -89,7 +88,9 @@ class WaitNotifyServiceImpl implements WaitNotifyService {
         nodeEngine.getOperationService().executeOperation(waitingOp);
     }
 
-    // runs after queue lock
+    // Runs in operation thread, we can assume that
+    // here we have an implicit lock for specific WaitNotifyKey.
+    // see javadoc
     @Override
     public void await(WaitSupport waitSupport) {
         final WaitNotifyKey key = waitSupport.getWaitKey();
@@ -103,7 +104,9 @@ class WaitNotifyServiceImpl implements WaitNotifyService {
         }
     }
 
-    // runs after queue lock
+    // Runs in operation thread, we can assume that
+    // here we have an implicit lock for specific WaitNotifyKey.
+    // see javadoc
     @Override
     public void notify(Notifier notifier) {
         WaitNotifyKey key = notifier.getNotifiedKey();
@@ -129,10 +132,33 @@ class WaitNotifyServiceImpl implements WaitNotifyService {
                 }
                 waitingOp.setValid(false);
             }
-            q.poll();
             // consume
+            q.poll();
+
             waitingOp = q.peek();
+
+            // If q.peek() returns null, we should deregister this specific
+            // key to avoid memory leak. By contract we know that await() and notify()
+            // cannot be called in parallel.
+            // We can safely remove this queue from registration map here.
+            if (waitingOp == null) {
+                mapWaitingOps.remove(key);
+            }
         }
+    }
+
+    // for testing purposes only
+    int getAwaitQueueCount() {
+        return mapWaitingOps.size();
+    }
+
+    // for testing purposes only
+    int getTotalWaitingOperationCount() {
+        int count = 0;
+        for (Queue<WaitingOp> queue : mapWaitingOps.values()) {
+            count += queue.size();
+        }
+        return count;
     }
 
     // invalidated waiting ops will removed from queue eventually by notifiers.
@@ -197,6 +223,11 @@ class WaitNotifyServiceImpl implements WaitNotifyService {
         }
     }
 
+    void reset() {
+        delayQueue.clear();
+        mapWaitingOps.clear();
+    }
+
     void shutdown() {
         logger.finest("Stopping tasks...");
         expirationTask.cancel(true);
@@ -228,7 +259,7 @@ class WaitNotifyServiceImpl implements WaitNotifyService {
         final WaitSupport waitSupport;
         final long expirationTime;
         volatile boolean valid = true;
-        volatile Throwable error;
+        volatile Object cancelResponse;
 
         WaitingOp(Queue<WaitingOp> queue, WaitSupport waitSupport) {
             this.op = (Operation) waitSupport;
@@ -271,13 +302,13 @@ class WaitNotifyServiceImpl implements WaitNotifyService {
         }
 
         public boolean isCancelled() {
-            return error != null;
+            return cancelResponse != null;
         }
 
         public boolean isCallTimedOut() {
             final NodeEngineImpl nodeEngine = (NodeEngineImpl) getNodeEngine();
             if (nodeEngine.operationService.isCallTimedOut(op)) {
-                cancel(new CallTimeoutException(op.getClass().getName(), op.getInvocationTime(), op.getCallTimeout()));
+                cancel(new CallTimeoutResponse(op.getCallId(), op.isUrgent()));
                 return true;
             }
             return false;
@@ -323,7 +354,7 @@ class WaitNotifyServiceImpl implements WaitNotifyService {
             if (expired) {
                 waitSupport.onWaitExpire();
             } else {
-                op.getResponseHandler().sendResponse(error);
+                op.getResponseHandler().sendResponse(cancelResponse);
             }
         }
 
@@ -372,8 +403,8 @@ class WaitNotifyServiceImpl implements WaitNotifyService {
             waitSupport.onWaitExpire();
         }
 
-        public void cancel(Throwable t) {
-            error = t;
+        public void cancel(Object error) {
+            this.cancelResponse = error;
         }
 
         @Override

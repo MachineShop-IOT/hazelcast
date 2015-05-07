@@ -19,17 +19,17 @@ package com.hazelcast.hibernate;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
+import com.hazelcast.test.HazelcastTestSupport;
 import org.hibernate.SessionFactory;
 import org.hibernate.cfg.Configuration;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.net.URL;
 import java.util.Properties;
 
-public abstract class HibernateTestSupport {
+public abstract class HibernateTestSupport extends HazelcastTestSupport {
 
     private final ILogger logger = Logger.getLogger(getClass());
 

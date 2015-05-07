@@ -124,7 +124,7 @@ abstract class AbstractBaseReplicatedRecordStore<K, V>
     }
 
     public LocalReplicatedMapStats createReplicatedMapStats() {
-        LocalReplicatedMapStatsImpl stats = mapStats;
+        LocalReplicatedMapStatsImpl stats = getReplicatedMapStats();
         stats.setOwnedEntryCount(storage.size());
 
         List<ReplicatedRecord<K, V>> records = new ArrayList<ReplicatedRecord<K, V>>(storage.values());
@@ -192,7 +192,7 @@ abstract class AbstractBaseReplicatedRecordStore<K, V>
 
             for (EventRegistration registration : registrations) {
                 EventFilter filter = registration.getFilter();
-                boolean publish = filter == null || filter.eval(key);
+                boolean publish = filter == null || filter.eval(marshallKey(key));
                 if (publish) {
                     eventService.publishEvent(ReplicatedMapService.SERVICE_NAME, registration, event, name.hashCode());
                 }

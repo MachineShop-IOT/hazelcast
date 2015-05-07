@@ -1,8 +1,11 @@
 package com.hazelcast.map.mapstore.writebehind;
 
+import com.hazelcast.map.impl.mapstore.writebehind.DelayedEntry;
+import com.hazelcast.map.impl.mapstore.writebehind.ReachedMaxSizeException;
+import com.hazelcast.map.impl.mapstore.writebehind.WriteBehindQueue;
 import com.hazelcast.nio.serialization.Data;
+import com.hazelcast.nio.serialization.DefaultSerializationServiceBuilder;
 import com.hazelcast.nio.serialization.SerializationService;
-import com.hazelcast.nio.serialization.SerializationServiceBuilder;
 import com.hazelcast.test.HazelcastParallelClassRunner;
 import com.hazelcast.test.HazelcastTestSupport;
 import com.hazelcast.test.annotation.QuickTest;
@@ -11,10 +14,11 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.hazelcast.map.mapstore.writebehind.WriteBehindQueues.createSafeBoundedArrayWriteBehindQueue;
-import static com.hazelcast.map.mapstore.writebehind.WriteBehindQueues.createDefaultWriteBehindQueue;
+import static com.hazelcast.map.impl.mapstore.writebehind.WriteBehindQueues.createDefaultWriteBehindQueue;
+import static com.hazelcast.map.impl.mapstore.writebehind.WriteBehindQueues.createSafeBoundedArrayWriteBehindQueue;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(HazelcastParallelClassRunner.class)
@@ -133,8 +137,53 @@ public class WriteBehindQueueTest extends HazelcastTestSupport {
         assertEquals(0, queue.size());
     }
 
+
+    @Test
+    public void testGet_onCoalescedWBQ_whenCount_smallerThanQueueSize() throws Exception {
+        int queueSize = 100;
+        int fetchNumberOfEntries = 10;
+        WriteBehindQueue wbq = createWBQ();
+
+        testGetWithCount(wbq, queueSize, fetchNumberOfEntries);
+    }
+
+    @Test
+    public void testGet_onBoundedWBQ_whenCount_smallerThanQueueSize() throws Exception {
+        int queueSize = 100;
+        int fetchNumberOfEntries = 10;
+        WriteBehindQueue wbq = createBoundedWBQ();
+
+        testGetWithCount(wbq, queueSize, fetchNumberOfEntries);
+    }
+
+    @Test
+    public void testGet_onCoalescedWBQ_whenCount_higherThanQueueSize() throws Exception {
+        int queueSize = 100;
+        int fetchNumberOfEntries = 10000;
+        WriteBehindQueue wbq = createWBQ();
+
+        testGetWithCount(wbq, queueSize, fetchNumberOfEntries);
+    }
+
+    @Test
+    public void testGet_onBoundedWBQ_whenCount_higherThanQueueSize() throws Exception {
+        int queueSize = 100;
+        int fetchNumberOfEntries = 10000;
+        WriteBehindQueue wbq = createBoundedWBQ();
+
+        testGetWithCount(wbq, queueSize, fetchNumberOfEntries);
+    }
+
+    private void testGetWithCount(WriteBehindQueue<DelayedEntry> queue, int queueSize, int fetchNumberOfEntries) {
+        fillQueue(queue, queueSize);
+        List<DelayedEntry> entries = queue.get(fetchNumberOfEntries);
+
+        int expectedFetchedEntryCount = Math.min(queueSize, fetchNumberOfEntries);
+        assertEquals(expectedFetchedEntryCount, entries.size());
+    }
+
     private void fillQueue(WriteBehindQueue queue, int numberOfItems) {
-        SerializationService ss1 = new SerializationServiceBuilder().build();
+        SerializationService ss1 = new DefaultSerializationServiceBuilder().build();
         final long storeTime = Clock.currentTimeMillis();
         for (int i = 0; i < numberOfItems; i++) {
             final DelayedEntry<Data, Object> e = DelayedEntry.createWithNullValue(ss1.toData(i), storeTime, i);

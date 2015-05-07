@@ -42,11 +42,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.hazelcast.cache.impl.CacheProxyUtil.validateResults;
 
 /**
- * Base Client Cache Proxy
+ * Abstract class providing cache open/close operations and {@link ClientContext} accessor which will be used
+ * by implementation of {@link com.hazelcast.cache.ICache} for client.
+ *
+ * @param <K> the type of key
+ * @param <V> the type of value
  */
 abstract class AbstractClientCacheProxyBase<K, V> {
 
     static final int TIMEOUT = 10;
+
     protected final ClientContext clientContext;
     protected final CacheConfig<K, V> cacheConfig;
     //this will represent the name from the user perspective
@@ -115,6 +120,10 @@ abstract class AbstractClientCacheProxyBase<K, V> {
         return isClosed.get();
     }
 
+    public boolean isDestroyed() {
+        return isDestroyed.get();
+    }
+
     protected abstract void closeListeners();
     //endregion close&destroy
 
@@ -156,7 +165,8 @@ abstract class AbstractClientCacheProxyBase<K, V> {
         }
     }
 
-    protected void submitLoadAllTask(final CacheLoadAllRequest request, final CompletionListener completionListener) {
+    protected void submitLoadAllTask(final CacheLoadAllRequest request,
+                                     final CompletionListener completionListener) {
         final LoadAllTask loadAllTask = new LoadAllTask(request, completionListener);
         final ClientExecutionService executionService = clientContext.getExecutionService();
 

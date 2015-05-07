@@ -1,11 +1,11 @@
 package com.hazelcast.client.spi.impl;
 
 import com.hazelcast.client.AuthenticationException;
-import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientNetworkConfig;
 import com.hazelcast.client.connection.AddressProvider;
 import com.hazelcast.client.connection.ClientConnectionManager;
 import com.hazelcast.client.connection.nio.ClientConnection;
+import com.hazelcast.client.impl.HazelcastClientInstanceImpl;
 import com.hazelcast.client.impl.client.ClientResponse;
 import com.hazelcast.cluster.MemberAttributeOperationType;
 import com.hazelcast.cluster.client.AddMembershipListenerRequest;
@@ -23,12 +23,14 @@ import com.hazelcast.nio.serialization.Data;
 import com.hazelcast.nio.serialization.SerializationService;
 import com.hazelcast.spi.impl.SerializableCollection;
 import com.hazelcast.util.Clock;
+import com.hazelcast.util.ExceptionUtil;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -36,27 +38,32 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.logging.Level;
 
 class ClusterListenerThread extends Thread {
 
     private static final ILogger LOGGER = Logger.getLogger(ClusterListenerThread.class);
     private static final int SLEEP_TIME = 1000;
+
     protected final List<MemberImpl> members = new LinkedList<MemberImpl>();
     protected ClientClusterServiceImpl clusterService;
     private volatile ClientConnection conn;
     private final CountDownLatch latch = new CountDownLatch(1);
     private final Collection<AddressProvider> addressProviders;
-    private HazelcastClient client;
+    private final boolean shuffleMemberList;
+    private HazelcastClientInstanceImpl client;
     private ClientConnectionManager connectionManager;
     private ClientListenerServiceImpl clientListenerService;
+    private Exception exception;
 
-
-    public ClusterListenerThread(ThreadGroup group, String name, Collection<AddressProvider> addressProviders) {
+    public ClusterListenerThread(ThreadGroup group, String name, Collection<AddressProvider> addressProvider
+            , boolean shuffleMemberList) {
         super(group, name);
-        this.addressProviders = addressProviders;
+        this.shuffleMemberList = shuffleMemberList;
+        this.addressProviders = addressProvider;
     }
 
-    public void init(HazelcastClient client) {
+    public void init(HazelcastClientInstanceImpl client) {
         this.client = client;
         this.connectionManager = client.getConnectionManager();
         this.clusterService = (ClientClusterServiceImpl) client.getClientClusterService();
@@ -65,6 +72,9 @@ class ClusterListenerThread extends Thread {
 
     public void await() throws InterruptedException {
         latch.await();
+        if (exception != null) {
+            throw ExceptionUtil.rethrow(exception);
+        }
     }
 
     ClientConnection getConnection() {
@@ -76,10 +86,11 @@ class ClusterListenerThread extends Thread {
             try {
                 if (conn == null) {
                     try {
-                        conn = connectToOne();
+                        connectToOne();
                     } catch (Exception e) {
                         if (client.getLifecycleService().isRunning()) {
                             LOGGER.severe("Error while connecting to cluster!", e);
+                            this.exception = e;
                         }
 
                         client.getLifecycleService().shutdown();
@@ -113,17 +124,20 @@ class ClusterListenerThread extends Thread {
         }
     }
 
-    private Collection<InetSocketAddress> getSocketAddresses() throws Exception {
+    private Collection<InetSocketAddress> getSocketAddresses() {
         final List<InetSocketAddress> socketAddresses = new LinkedList<InetSocketAddress>();
         if (!members.isEmpty()) {
             for (MemberImpl member : members) {
                 socketAddresses.add(member.getInetSocketAddress());
             }
-            Collections.shuffle(socketAddresses);
         }
 
         for (AddressProvider addressProvider : addressProviders) {
             socketAddresses.addAll(addressProvider.loadAddresses());
+        }
+
+        if (shuffleMemberList) {
+            Collections.shuffle(socketAddresses);
         }
 
         return socketAddresses;
@@ -233,7 +247,7 @@ class ClusterListenerThread extends Thread {
         }
     }
 
-    private ClientConnection connectToOne() throws Exception {
+    private void connectToOne() throws Exception {
         final ClientNetworkConfig networkConfig = client.getClientConfig().getNetworkConfig();
         final int connAttemptLimit = networkConfig.getConnectionAttemptLimit();
         final int connectionAttemptPeriod = networkConfig.getConnectionAttemptPeriod();
@@ -242,30 +256,23 @@ class ClusterListenerThread extends Thread {
 
         int attempt = 0;
         Throwable lastError = null;
-        while (true) {
+        Set<InetSocketAddress> triedAddresses = new HashSet<InetSocketAddress>();
+        while (attempt < connectionAttemptLimit) {
+            attempt++;
             final long nextTry = Clock.currentTimeMillis() + connectionAttemptPeriod;
-            final Collection<InetSocketAddress> socketAddresses = getSocketAddresses();
-            for (InetSocketAddress isa : socketAddresses) {
-                Address address = new Address(isa);
-                try {
-                    final ClientConnection connection = connectionManager.ownerConnection(address);
-                    clusterService.fireConnectionEvent(false);
-                    return connection;
-                } catch (IOException e) {
-                    lastError = e;
-                    LOGGER.finest("IO error during initial connection...", e);
-                } catch (AuthenticationException e) {
-                    lastError = e;
-                    LOGGER.warning("Authentication error on " + address, e);
-                }
+
+            final Throwable throwable = connect(triedAddresses);
+
+            if (throwable == null) {
+                return;
             }
-            if (attempt++ >= connectionAttemptLimit) {
-                break;
-            }
+
+            lastError = throwable;
+
             final long remainingTime = nextTry - Clock.currentTimeMillis();
             LOGGER.warning(
                     String.format("Unable to get alive cluster connection,"
-                            + " try in %d ms later, attempt %d of %d.",
+                                    + " try in %d ms later, attempt %d of %d.",
                             Math.max(0, remainingTime), attempt, connectionAttemptLimit));
 
             if (remainingTime > 0) {
@@ -276,7 +283,31 @@ class ClusterListenerThread extends Thread {
                 }
             }
         }
-        throw new IllegalStateException("Unable to connect to any address in the config!", lastError);
+        throw new IllegalStateException("Unable to connect to any address in the config! "
+                + "The following addresses were tried:" + triedAddresses, lastError);
+    }
+
+    private Throwable connect(Set<InetSocketAddress> triedAddresses) {
+        final Collection<InetSocketAddress> socketAddresses = getSocketAddresses();
+        Throwable lastError = null;
+        for (InetSocketAddress inetSocketAddress : socketAddresses) {
+            try {
+                triedAddresses.add(inetSocketAddress);
+                Address address = new Address(inetSocketAddress);
+                if (LOGGER.isFinestEnabled()) {
+                    LOGGER.finest("Trying to connect to " + address);
+                }
+                final ClientConnection connection = connectionManager.ownerConnection(address);
+                clusterService.fireConnectionEvent(false);
+                conn = connection;
+                return null;
+            } catch (Exception e) {
+                lastError = e;
+                Level level = e instanceof AuthenticationException ? Level.WARNING : Level.FINEST;
+                LOGGER.log(level, "Exception during initial connection to " + inetSocketAddress, e);
+            }
+        }
+        return lastError;
     }
 }
 

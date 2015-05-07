@@ -16,15 +16,16 @@
 
 package com.hazelcast.client.spi.impl;
 
-import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientProperties;
 import com.hazelcast.client.connection.nio.ClientConnection;
+import com.hazelcast.client.impl.HazelcastClientInstanceImpl;
 import com.hazelcast.client.impl.client.ClientRequest;
 import com.hazelcast.client.impl.client.RetryableRequest;
 import com.hazelcast.client.spi.EventHandler;
 import com.hazelcast.core.ExecutionCallback;
 import com.hazelcast.core.HazelcastInstanceNotActiveException;
 import com.hazelcast.core.ICompletableFuture;
+import com.hazelcast.executor.impl.client.RefreshableRequest;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
 import com.hazelcast.nio.serialization.Data;
@@ -33,7 +34,9 @@ import com.hazelcast.spi.Callback;
 import com.hazelcast.spi.exception.TargetDisconnectedException;
 import com.hazelcast.spi.exception.TargetNotMemberException;
 import com.hazelcast.util.Clock;
+import com.hazelcast.util.EmptyStatement;
 import com.hazelcast.util.ExceptionUtil;
+
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -56,7 +59,7 @@ public class ClientCallFuture<V> implements ICompletableFuture<V>, Callback {
     private final int retryCount;
     private final int retryWaitTime;
 
-    private Object response;
+    private volatile Object response;
 
     private final ClientRequest request;
 
@@ -76,7 +79,7 @@ public class ClientCallFuture<V> implements ICompletableFuture<V>, Callback {
 
     private List<ExecutionCallbackNode> callbackNodeList = new LinkedList<ExecutionCallbackNode>();
 
-    public ClientCallFuture(HazelcastClient client, ClientRequest request, EventHandler handler) {
+    public ClientCallFuture(HazelcastClientInstanceImpl client, ClientRequest request, EventHandler handler) {
         final ClientProperties clientProperties = client.getClientProperties();
         int interval = clientProperties.getHeartbeatInterval().getInteger();
         this.heartBeatInterval = interval > 0 ? interval : Integer.parseInt(PROP_HEARTBEAT_INTERVAL_DEFAULT);
@@ -87,7 +90,6 @@ public class ClientCallFuture<V> implements ICompletableFuture<V>, Callback {
         int waitTime = clientProperties.getRetryWaitTime().getInteger();
         this.retryWaitTime = waitTime > 0 ? waitTime : Integer.parseInt(PROP_REQUEST_RETRY_WAIT_TIME_DEFAULT);
 
-
         this.invocationService = (ClientInvocationServiceImpl) client.getInvocationService();
         this.executionService = (ClientExecutionServiceImpl) client.getClientExecutionService();
         this.clientListenerService = (ClientListenerServiceImpl) client.getListenerService();
@@ -96,18 +98,22 @@ public class ClientCallFuture<V> implements ICompletableFuture<V>, Callback {
         this.handler = handler;
     }
 
+    @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
         return false;
     }
 
+    @Override
     public boolean isCancelled() {
         return false;
     }
 
+    @Override
     public boolean isDone() {
         return response != null;
     }
 
+    @Override
     public V get() throws InterruptedException, ExecutionException {
         try {
             return get(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
@@ -116,6 +122,7 @@ public class ClientCallFuture<V> implements ICompletableFuture<V>, Callback {
         }
     }
 
+    @Override
     public V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
         if (response == null) {
             long waitMillis = unit.toMillis(timeout);
@@ -143,6 +150,7 @@ public class ClientCallFuture<V> implements ICompletableFuture<V>, Callback {
         return true;
     }
 
+    @Override
     public void notify(Object response) {
         if (response == null) {
             throw new IllegalArgumentException("response can't be null");
@@ -212,10 +220,12 @@ public class ClientCallFuture<V> implements ICompletableFuture<V>, Callback {
         return (V) response;
     }
 
+    @Override
     public void andThen(ExecutionCallback<V> callback) {
         andThen(callback, executionService.getAsyncExecutor());
     }
 
+    @Override
     public void andThen(ExecutionCallback<V> callback, Executor executor) {
         synchronized (this) {
             if (response != null) {
@@ -259,8 +269,29 @@ public class ClientCallFuture<V> implements ICompletableFuture<V>, Callback {
         if (handler != null) {
             handler.beforeListenerRegister();
         }
-        executionService.schedule(new ReSendTask(), retryWaitTime, TimeUnit.MILLISECONDS);
+        if (request instanceof RefreshableRequest) {
+            ((RefreshableRequest) request).refresh();
+        }
+
+        try {
+            sleep();
+            executionService.execute(new ReSendTask());
+        } catch (RejectedExecutionException e) {
+            response = e;
+            if (LOGGER.isFinestEnabled()) {
+                LOGGER.finest("Retry could not be scheduled ", e);
+            }
+            return false;
+        }
         return true;
+    }
+
+    private void sleep() {
+        try {
+            Thread.sleep(retryWaitTime);
+        } catch (InterruptedException ignored) {
+            EmptyStatement.ignore(ignored);
+        }
     }
 
     private void runAsynchronous(final ExecutionCallback callback, Executor executor, final boolean deserialized) {
@@ -296,6 +327,7 @@ public class ClientCallFuture<V> implements ICompletableFuture<V>, Callback {
     }
 
     class ReSendTask implements Runnable {
+        @Override
         public void run() {
             try {
                 invocationService.reSend(ClientCallFuture.this);
@@ -303,7 +335,7 @@ public class ClientCallFuture<V> implements ICompletableFuture<V>, Callback {
                 if (handler != null) {
                     clientListenerService.registerFailedListener(ClientCallFuture.this);
                 } else {
-                    setResponse(e);
+                    ClientCallFuture.this.notify(new TargetDisconnectedException());
                 }
             }
         }

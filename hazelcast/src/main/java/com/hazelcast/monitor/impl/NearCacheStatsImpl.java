@@ -2,10 +2,8 @@ package com.hazelcast.monitor.impl;
 
 import com.eclipsesource.json.JsonObject;
 import com.hazelcast.monitor.NearCacheStats;
-import com.hazelcast.nio.ObjectDataInput;
-import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.util.Clock;
-import java.io.IOException;
+
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import static com.hazelcast.util.JsonUtil.getLong;
@@ -17,9 +15,9 @@ public class NearCacheStatsImpl
             .newUpdater(NearCacheStatsImpl.class, "hits");
     private static final AtomicLongFieldUpdater<NearCacheStatsImpl> MISSES_UPDATER = AtomicLongFieldUpdater
             .newUpdater(NearCacheStatsImpl.class, "misses");
-    private long ownedEntryCount;
-    private long ownedEntryMemoryCost;
-    private long creationTime;
+    private volatile long ownedEntryCount;
+    private volatile long ownedEntryMemoryCost;
+    private volatile long creationTime;
 
     // These fields are only accessed through the updaters
     private volatile long hits;
@@ -81,26 +79,6 @@ public class NearCacheStatsImpl
     }
 
     @Override
-    public void writeData(ObjectDataOutput out)
-            throws IOException {
-        out.writeLong(ownedEntryCount);
-        out.writeLong(ownedEntryMemoryCost);
-        out.writeLong(hits);
-        out.writeLong(misses);
-        out.writeLong(creationTime);
-    }
-
-    @Override
-    public void readData(ObjectDataInput in)
-            throws IOException {
-        this.ownedEntryCount = in.readLong();
-        this.ownedEntryMemoryCost = in.readLong();
-        HITS_UPDATER.set(this, in.readLong());
-        MISSES_UPDATER.set(this, in.readLong());
-        this.creationTime = in.readLong();
-    }
-
-    @Override
     public JsonObject toJson() {
         JsonObject root = new JsonObject();
         root.add("ownedEntryCount", ownedEntryCount);
@@ -116,8 +94,8 @@ public class NearCacheStatsImpl
         ownedEntryCount = getLong(json, "ownedEntryCount", -1L);
         ownedEntryMemoryCost = getLong(json, "ownedEntryMemoryCost", -1L);
         creationTime = getLong(json, "creationTime", -1L);
-        HITS_UPDATER.set(this, getLong(json, "hits", -1L));
-        MISSES_UPDATER.set(this, getLong(json, "misses", -1L));
+        hits = getLong(json, "hits", -1L);
+        misses = getLong(json, "misses", -1L);
     }
 
     @Override

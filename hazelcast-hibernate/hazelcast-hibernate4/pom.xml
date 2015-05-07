@@ -25,7 +25,7 @@
     <parent>
         <groupId>com.hazelcast</groupId>
         <artifactId>hazelcast-hibernate</artifactId>
-        <version>3.3.3-ms</version>
+        <version>3.4.2-ms</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 

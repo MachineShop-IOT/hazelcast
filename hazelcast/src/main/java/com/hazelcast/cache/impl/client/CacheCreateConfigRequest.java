@@ -33,21 +33,26 @@ import com.hazelcast.spi.Operation;
 import java.io.IOException;
 import java.security.Permission;
 
+/**
+ * This client request  specifically calls {@link CacheCreateConfigOperation} on the server side.
+ *
+ * @see com.hazelcast.cache.impl.operation.CacheCreateConfigOperation
+ */
 public class CacheCreateConfigRequest
         extends ClientRequest {
 
     private static final int TRY_COUNT = 100;
 
     private CacheConfig cacheConfig;
-    private boolean create;
+    private boolean createAlsoOnOthers;
     private int partitionId;
 
     public CacheCreateConfigRequest() {
     }
 
-    public CacheCreateConfigRequest(CacheConfig cacheConfig, boolean create, int partitionId) {
+    public CacheCreateConfigRequest(CacheConfig cacheConfig, boolean createAlsoOnOthers, int partitionId) {
         this.cacheConfig = cacheConfig;
-        this.create = create;
+        this.createAlsoOnOthers = createAlsoOnOthers;
         this.partitionId = partitionId;
     }
 
@@ -57,7 +62,7 @@ public class CacheCreateConfigRequest
         final ClientEndpoint endpoint = getEndpoint();
         final Operation op = prepareOperation();
         op.setCallerUuid(endpoint.getUuid());
-        final InvocationBuilder builder  = operationService.createInvocationBuilder(getServiceName(), op, partitionId);
+        final InvocationBuilder builder = operationService.createInvocationBuilder(getServiceName(), op, partitionId);
         builder.setTryCount(TRY_COUNT).setResultDeserialized(false).setCallback(new Callback<Object>() {
             public void notify(Object object) {
                 endpoint.sendResponse(object, getCallId());
@@ -67,7 +72,7 @@ public class CacheCreateConfigRequest
     }
 
     protected Operation prepareOperation() {
-        return new CacheCreateConfigOperation(cacheConfig);
+        return new CacheCreateConfigOperation(cacheConfig, createAlsoOnOthers);
     }
 
     public final int getFactoryId() {
@@ -85,7 +90,7 @@ public class CacheCreateConfigRequest
 
     public void write(PortableWriter writer)
             throws IOException {
-        writer.writeBoolean("c", create);
+        writer.writeBoolean("c", createAlsoOnOthers);
         writer.writeInt("p", partitionId);
         final ObjectDataOutput out = writer.getRawDataOutput();
         out.writeObject(cacheConfig);
@@ -93,7 +98,7 @@ public class CacheCreateConfigRequest
 
     public void read(PortableReader reader)
             throws IOException {
-        create = reader.readBoolean("c");
+        createAlsoOnOthers = reader.readBoolean("c");
         partitionId = reader.readInt("p");
         final ObjectDataInput in = reader.getRawDataInput();
         cacheConfig = in.readObject();

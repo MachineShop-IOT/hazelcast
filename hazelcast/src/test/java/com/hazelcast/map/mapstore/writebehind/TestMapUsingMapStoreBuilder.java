@@ -29,9 +29,15 @@ public class TestMapUsingMapStoreBuilder<K, V> {
 
     private int writeBatchSize = 1;
 
+    private boolean writeCoalescing = MapStoreConfig.DEFAULT_WRITE_COALESCING;
+
     private InMemoryFormat inMemoryFormat = InMemoryFormat.BINARY;
 
     private int backupDelaySeconds = 10;
+
+    private long writeBehindQueueCapacity;
+
+    private TestHazelcastInstanceFactory instanceFactory;
 
     private TestMapUsingMapStoreBuilder() {
     }
@@ -54,6 +60,11 @@ public class TestMapUsingMapStoreBuilder<K, V> {
             throw new IllegalArgumentException("nodeCount < 1");
         }
         this.nodeCount = nodeCount;
+        return this;
+    }
+
+    public TestMapUsingMapStoreBuilder<K, V> withNodeFactory(TestHazelcastInstanceFactory factory) {
+        this.instanceFactory = factory;
         return this;
     }
 
@@ -81,6 +92,14 @@ public class TestMapUsingMapStoreBuilder<K, V> {
         return this;
     }
 
+    public TestMapUsingMapStoreBuilder<K, V> withWriteBehindQueueCapacity(int writeBehindQueueCapacity) {
+        if (writeBehindQueueCapacity < 0) {
+            throw new IllegalArgumentException("writeBehindQueueCapacity should be > 0 but found [" + writeBehindQueueCapacity + ']');
+        }
+        this.writeBehindQueueCapacity = writeBehindQueueCapacity;
+        return this;
+    }
+
 
     public TestMapUsingMapStoreBuilder<K, V> withMapStore(MapStore<K, V> mapStore) {
         this.mapStore = mapStore;
@@ -92,6 +111,11 @@ public class TestMapUsingMapStoreBuilder<K, V> {
             throw new IllegalArgumentException("writeDelaySeconds < 0");
         }
         this.writeDelaySeconds = writeDelaySeconds;
+        return this;
+    }
+
+    public TestMapUsingMapStoreBuilder<K, V> withWriteCoalescing(boolean writeCoalescing) {
+        this.writeCoalescing = writeCoalescing;
         return this;
     }
 
@@ -115,12 +139,20 @@ public class TestMapUsingMapStoreBuilder<K, V> {
         mapStoreConfig
                 .setImplementation(mapStore)
                 .setWriteDelaySeconds(writeDelaySeconds)
-                .setWriteBatchSize(writeBatchSize);
+                .setWriteBatchSize(writeBatchSize)
+                .setWriteCoalescing(writeCoalescing);
 
         final Config config = new Config();
         config.getMapConfig(mapName)
                 .setBackupCount(backupCount)
-                .setMapStoreConfig(mapStoreConfig).setInMemoryFormat(inMemoryFormat);
+                .setMapStoreConfig(mapStoreConfig)
+                .setInMemoryFormat(inMemoryFormat);
+
+        if (writeBehindQueueCapacity > 0) {
+            config.setProperty(GroupProperties.PROP_MAP_WRITE_BEHIND_QUEUE_CAPACITY,
+                    String.valueOf(writeBehindQueueCapacity));
+        }
+
 
         config.setProperty(GroupProperties.PROP_PARTITION_COUNT, String.valueOf(partitionCount));
         if (backupDelaySeconds > 0) {
@@ -128,8 +160,10 @@ public class TestMapUsingMapStoreBuilder<K, V> {
                     String.valueOf(backupCount));
         }
         // nodes.
-        final TestHazelcastInstanceFactory instanceFactory = new TestHazelcastInstanceFactory(nodeCount);
-        nodes = instanceFactory.newInstances(config);
+        nodes = new HazelcastInstance[nodeCount];
+        for (int i = 0; i < nodeCount; i++) {
+            nodes[i] = instanceFactory.newHazelcastInstance(config);
+        }
         return nodes[0].getMap(mapName);
     }
 

@@ -17,8 +17,10 @@
 package com.hazelcast.spring;
 
 import com.hazelcast.client.HazelcastClient;
+import com.hazelcast.client.impl.HazelcastClientProxy;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.spring.context.SpringManagedContext;
 import com.hazelcast.test.annotation.QuickTest;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -63,10 +65,13 @@ public class TestBeansApplicationContext {
         context.getBean("client");
         context.getBean("client");
         assertEquals(3, HazelcastClient.getAllHazelcastClients().size());
+        HazelcastClientProxy client = (HazelcastClientProxy) HazelcastClient.getAllHazelcastClients().iterator().next();
+        assertTrue(client.getClientConfig().getManagedContext() instanceof SpringManagedContext);
 
         HazelcastInstance instance = (HazelcastInstance) context.getBean("instance");
         assertEquals(1, Hazelcast.getAllHazelcastInstances().size());
         assertEquals(instance, Hazelcast.getAllHazelcastInstances().iterator().next());
+        assertTrue(instance.getConfig().getManagedContext() instanceof SpringManagedContext);
     }
 
 }

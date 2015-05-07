@@ -22,7 +22,7 @@ import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
 import com.hazelcast.spi.InternalCompletableFuture;
 import com.hazelcast.spi.annotation.PrivateApi;
-import com.hazelcast.transaction.TransactionException;
+import com.hazelcast.transaction.TransactionTimedOutException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -99,7 +99,7 @@ public final class FutureUtil {
         @Override
         public void handleException(Throwable throwable) {
             if (throwable instanceof TimeoutException) {
-                throw new TransactionException(throwable);
+                throw new TransactionTimedOutException(throwable);
             }
             throw ExceptionUtil.rethrow(throwable);
         }
@@ -191,19 +191,20 @@ public final class FutureUtil {
     }
 
     @PrivateApi
-    public static <V> Collection<V> returnWithDeadline(Collection<Future> futures, long timeout, TimeUnit timeUnit) {
+    public static <V> Collection<V> returnWithDeadline(Collection<Future<V>> futures, long timeout, TimeUnit timeUnit) {
         return returnWithDeadline(futures, timeout, timeUnit, IGNORE_ALL_EXCEPT_LOG_MEMBER_LEFT);
     }
 
     @PrivateApi
-    public static <V> Collection<V> returnWithDeadline(Collection<Future> futures, long timeout, TimeUnit timeUnit,
+    public static <V> Collection<V> returnWithDeadline(Collection<Future<V>> futures, long timeout, TimeUnit timeUnit,
                                                        ExceptionHandler exceptionHandler) {
 
         return returnWithDeadline(futures, timeout, timeUnit, timeout, timeUnit, exceptionHandler);
     }
 
     @PrivateApi
-    public static <V> Collection<V> returnWithDeadline(Collection<Future> futures, long overallTimeout, TimeUnit overallTimeUnit,
+    public static <V> Collection<V> returnWithDeadline(Collection<Future<V>> futures,
+                                                       long overallTimeout, TimeUnit overallTimeUnit,
                                                        long perFutureTimeout, TimeUnit perFutureTimeUnit) {
 
         return returnWithDeadline(futures, overallTimeout, overallTimeUnit, perFutureTimeout, perFutureTimeUnit,
@@ -211,7 +212,8 @@ public final class FutureUtil {
     }
 
     @PrivateApi
-    public static <V> Collection<V> returnWithDeadline(Collection<Future> futures, long overallTimeout, TimeUnit overallTimeUnit,
+    public static <V> Collection<V> returnWithDeadline(Collection<Future<V>> futures,
+                                                       long overallTimeout, TimeUnit overallTimeUnit,
                                                        long perFutureTimeout, TimeUnit perFutureTimeUnit,
                                                        ExceptionHandler exceptionHandler) {
 

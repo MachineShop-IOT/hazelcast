@@ -18,12 +18,8 @@ package com.hazelcast.monitor.impl;
 
 import com.eclipsesource.json.JsonObject;
 import com.hazelcast.monitor.LocalReplicatedMapStats;
-import com.hazelcast.nio.ObjectDataInput;
-import com.hazelcast.nio.ObjectDataOutput;
-import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
-import com.hazelcast.replicatedmap.impl.operation.ReplicatedMapDataSerializerHook;
 import com.hazelcast.util.Clock;
-import java.io.IOException;
+
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import static com.hazelcast.util.JsonUtil.getLong;
@@ -33,7 +29,7 @@ import static com.hazelcast.util.JsonUtil.getLong;
  * able to transform those between wire format and instance view
  */
 public class LocalReplicatedMapStatsImpl
-        implements LocalReplicatedMapStats, IdentifiedDataSerializable {
+        implements LocalReplicatedMapStats {
 
     //CHECKSTYLE:OFF
     private static final AtomicLongFieldUpdater<LocalReplicatedMapStatsImpl> LAST_ACCESS_TIME_UPDATER = AtomicLongFieldUpdater
@@ -85,55 +81,11 @@ public class LocalReplicatedMapStatsImpl
     private volatile long maxPutLatency;
     private volatile long maxRemoveLatency;
 
-    private long ownedEntryCount;
-    private long creationTime;
+    private volatile long creationTime;
+    private volatile long ownedEntryCount;
 
     public LocalReplicatedMapStatsImpl() {
         creationTime = Clock.currentTimeMillis();
-    }
-
-    @Override
-    public void writeData(ObjectDataOutput out)
-            throws IOException {
-        out.writeLong(getCount);
-        out.writeLong(putCount);
-        out.writeLong(removeCount);
-        out.writeLong(numberOfOtherOperations);
-        out.writeLong(numberOfEvents);
-        out.writeLong(numberOfReplicationEvents);
-        out.writeLong(lastAccessTime);
-        out.writeLong(lastUpdateTime);
-        out.writeLong(hits);
-        out.writeLong(ownedEntryCount);
-        out.writeLong(creationTime);
-        out.writeLong(totalGetLatencies);
-        out.writeLong(totalPutLatencies);
-        out.writeLong(totalRemoveLatencies);
-        out.writeLong(maxGetLatency);
-        out.writeLong(maxPutLatency);
-        out.writeLong(maxRemoveLatency);
-    }
-
-    @Override
-    public void readData(ObjectDataInput in)
-            throws IOException {
-        GET_COUNT_UPDATER.set(this, in.readLong());
-        PUT_COUNT_UPDATER.set(this, in.readLong());
-        REMOVE_COUNT_UPDATER.set(this, in.readLong());
-        NUMBER_OF_OTHER_OPERATIONS_UPDATER.set(this, in.readLong());
-        NUMBER_OF_EVENTS_UPDATER.set(this, in.readLong());
-        NUMBER_OF_REPLICATION_EVENTS_UPDATER.set(this, in.readLong());
-        LAST_ACCESS_TIME_UPDATER.set(this, in.readLong());
-        LAST_UPDATE_TIME_UPDATER.set(this, in.readLong());
-        HITS_UPDATER.set(this, in.readLong());
-        ownedEntryCount = in.readLong();
-        creationTime = in.readLong();
-        TOTAL_GET_LATENCIES_UPDATER.set(this, in.readLong());
-        TOTAL_PUT_LATENCIES_UPDATER.set(this, in.readLong());
-        TOTAL_REMOVE_LATENCIES_UPDATER.set(this, in.readLong());
-        MAX_GET_LATENCY_UPDATER.set(this, in.readLong());
-        MAX_PUT_LATENCY_UPDATER.set(this, in.readLong());
-        MAX_REMOVE_LATENCY_UPDATER.set(this, in.readLong());
     }
 
     @Override
@@ -161,23 +113,23 @@ public class LocalReplicatedMapStatsImpl
 
     @Override
     public void fromJson(JsonObject json) {
-        GET_COUNT_UPDATER.set(this, getLong(json, "getCount", -1L));
-        PUT_COUNT_UPDATER.set(this, getLong(json, "putCount", -1L));
-        REMOVE_COUNT_UPDATER.set(this, getLong(json, "removeCount", -1L));
-        NUMBER_OF_OTHER_OPERATIONS_UPDATER.set(this, getLong(json, "numberOfOtherOperations", -1L));
-        NUMBER_OF_EVENTS_UPDATER.set(this, getLong(json, "numberOfEvents", -1L));
-        NUMBER_OF_REPLICATION_EVENTS_UPDATER.set(this, getLong(json, "numberOfReplicationEvents", -1L));
-        LAST_ACCESS_TIME_UPDATER.set(this, getLong(json, "lastAccessTime", -1L));
-        LAST_UPDATE_TIME_UPDATER.set(this, getLong(json, "lastUpdateTime", -1L));
-        HITS_UPDATER.set(this, getLong(json, "hits", -1L));
+        getCount = getLong(json, "getCount", -1L);
+        putCount = getLong(json, "putCount", -1L);
+        removeCount = getLong(json, "removeCount", -1L);
+        numberOfOtherOperations = getLong(json, "numberOfOtherOperations", -1L);
+        numberOfEvents = getLong(json, "numberOfEvents", -1L);
+        numberOfReplicationEvents = getLong(json, "numberOfReplicationEvents", -1L);
+        lastAccessTime = getLong(json, "lastAccessTime", -1L);
+        lastUpdateTime = getLong(json, "lastUpdateTime", -1L);
+        hits = getLong(json, "hits", -1L);
         ownedEntryCount = getLong(json, "ownedEntryCount", -1L);
         creationTime = getLong(json, "creationTime", -1L);
-        TOTAL_GET_LATENCIES_UPDATER.set(this, getLong(json, "totalGetLatencies", -1L));
-        TOTAL_PUT_LATENCIES_UPDATER.set(this, getLong(json, "totalPutLatencies", -1L));
-        TOTAL_REMOVE_LATENCIES_UPDATER.set(this, getLong(json, "totalRemoveLatencies", -1L));
-        MAX_GET_LATENCY_UPDATER.set(this, getLong(json, "maxGetLatency", -1L));
-        MAX_PUT_LATENCY_UPDATER.set(this, getLong(json, "maxPutLatency", -1L));
-        MAX_REMOVE_LATENCY_UPDATER.set(this, getLong(json, "maxRemoveLatency", -1L));
+        totalGetLatencies = getLong(json, "totalGetLatencies", -1L);
+        totalPutLatencies = getLong(json, "totalPutLatencies", -1L);
+        totalRemoveLatencies = getLong(json, "totalRemoveLatencies", -1L);
+        maxGetLatency = getLong(json, "maxGetLatency", -1L);
+        maxPutLatency = getLong(json, "maxPutLatency", -1L);
+        maxRemoveLatency = getLong(json, "maxRemoveLatency", -1L);
     }
 
     @Override
@@ -392,13 +344,4 @@ public class LocalReplicatedMapStatsImpl
                 + ", creationTime=" + creationTime + '}';
     }
 
-    @Override
-    public int getFactoryId() {
-        return ReplicatedMapDataSerializerHook.F_ID;
-    }
-
-    @Override
-    public int getId() {
-        return ReplicatedMapDataSerializerHook.MAP_STATS;
-    }
 }

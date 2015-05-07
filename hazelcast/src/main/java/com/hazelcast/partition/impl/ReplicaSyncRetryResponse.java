@@ -16,21 +16,22 @@
 
 package com.hazelcast.partition.impl;
 
+import com.hazelcast.logging.ILogger;
+import com.hazelcast.nio.Address;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.partition.InternalPartitionService;
+import com.hazelcast.partition.MigrationCycleOperation;
 import com.hazelcast.partition.ReplicaErrorLogger;
 import com.hazelcast.spi.BackupOperation;
 import com.hazelcast.spi.Operation;
 import com.hazelcast.spi.PartitionAwareOperation;
 import com.hazelcast.spi.UrgentSystemOperation;
-import com.hazelcast.spi.impl.NodeEngineImpl;
 
 import java.io.IOException;
 
-public class ReplicaSyncRetryResponse extends Operation implements PartitionAwareOperation, BackupOperation,
-        UrgentSystemOperation {
-
+public class ReplicaSyncRetryResponse extends Operation
+        implements PartitionAwareOperation, BackupOperation, UrgentSystemOperation, MigrationCycleOperation {
 
     public ReplicaSyncRetryResponse() {
     }
@@ -39,12 +40,29 @@ public class ReplicaSyncRetryResponse extends Operation implements PartitionAwar
     }
 
     public void run() throws Exception {
-        final NodeEngineImpl nodeEngine = (NodeEngineImpl) getNodeEngine();
-        final InternalPartitionServiceImpl partitionService = (InternalPartitionServiceImpl) nodeEngine.getPartitionService();
+        final InternalPartitionServiceImpl partitionService = getService();
         final int partitionId = getPartitionId();
         final int replicaIndex = getReplicaIndex();
-        partitionService.schedulePartitionReplicaSync(partitionId, replicaIndex,
-                InternalPartitionService.REPLICA_SYNC_RETRY_DELAY);
+
+        partitionService.clearReplicaSync(partitionId, replicaIndex);
+
+        InternalPartitionImpl partition = partitionService.getPartitionImpl(partitionId);
+        Address thisAddress = getNodeEngine().getThisAddress();
+        ILogger logger = getLogger();
+
+        int currentReplicaIndex = partition.getReplicaIndex(thisAddress);
+        if (currentReplicaIndex > 0) {
+            if (logger.isFinestEnabled()) {
+                logger.finest("Retrying replica sync request for partition: " + partitionId
+                    + ", initial-replica: " + replicaIndex + ", current-replica: " + currentReplicaIndex);
+            }
+            partitionService.triggerPartitionReplicaSync(partitionId, currentReplicaIndex,
+                    InternalPartitionService.REPLICA_SYNC_RETRY_DELAY);
+
+        } else if (logger.isFinestEnabled()) {
+            logger.finest("No need to retry replica sync request for partition: " + partitionId
+                    + ", initial-replica: " + replicaIndex + ", current-replica: " + currentReplicaIndex);
+        }
     }
 
     public void afterRun() throws Exception {
@@ -59,7 +77,12 @@ public class ReplicaSyncRetryResponse extends Operation implements PartitionAwar
     }
 
     public boolean validatesTarget() {
-        return true;
+        return false;
+    }
+
+    @Override
+    public String getServiceName() {
+        return InternalPartitionService.SERVICE_NAME;
     }
 
     public void logError(Throwable e) {

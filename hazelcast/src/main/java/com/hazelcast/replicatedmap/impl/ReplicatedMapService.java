@@ -84,9 +84,7 @@ public class ReplicatedMapService
 
     @Override
     public void reset() {
-        for (ReplicatedRecordStore replicatedRecordStore : replicatedStorages.values()) {
-            replicatedRecordStore.clear(false, true);
-        }
+        // Nothing to do, it is ok for a ReplicatedMap to keep its current state on rejoins
     }
 
     @Override
@@ -188,10 +186,10 @@ public class ReplicatedMapService
                         replicatedRecordStorage = new DataReplicatedRecordStore(name, nodeEngine,
                                 ReplicatedMapService.this);
                         break;
-                    case OFFHEAP:
-                        throw new IllegalStateException("offheap not yet supported for replicated map");
+                    case NATIVE:
+                        throw new IllegalStateException("native memory not yet supported for replicated map");
                     default:
-                        throw new IllegalStateException("Unhandeled in memory format:" + inMemoryFormat);
+                        throw new IllegalStateException("Unhandled in memory format:" + inMemoryFormat);
                 }
                 return replicatedRecordStorage;
             }
