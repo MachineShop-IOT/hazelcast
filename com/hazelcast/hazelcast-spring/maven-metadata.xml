@@ -3,10 +3,10 @@
   <groupId>com.hazelcast</groupId>
   <artifactId>hazelcast-spring</artifactId>
   <versioning>
-    <release>3.3.3-ms</release>
+    <release>3.4.2-ms</release>
     <versions>
-      <version>3.3.3-ms</version>
+      <version>3.4.2-ms</version>
     </versions>
-    <lastUpdated>20141211145314</lastUpdated>
+    <lastUpdated>20150507204010</lastUpdated>
   </versioning>
 </metadata>
